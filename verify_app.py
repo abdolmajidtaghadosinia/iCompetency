@@ -1,6 +1,12 @@
 
-from playwright.sync_api import Page, expect, sync_playwright
+import os
+import sys
 import time
+
+from playwright.sync_api import Page, sync_playwright
+
+SCREENSHOT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "verification")
+
 
 def verify_app_loads(page: Page):
     # Listen for console messages
@@ -12,24 +18,27 @@ def verify_app_loads(page: Page):
 
     # Wait a bit to ensure initial render happens
     time.sleep(2)
-    
-    # Check if the critical error overlay is present.
-    error_overlay = page.get_by_text("Application Startup Failed")
+
+    os.makedirs(SCREENSHOT_DIR, exist_ok=True)
+
+    # Check if the ErrorBoundary's crash overlay is present (see components/ErrorBoundary.tsx).
+    error_overlay = page.get_by_text("Application Crashed")
     if error_overlay.is_visible():
         print("Error overlay detected!")
         error_details = page.locator("pre").inner_text()
         print(f"Error Details from UI: {error_details}")
-        page.screenshot(path="/home/jules/verification/error_detected.png")
-        raise Exception("Application failed to start")
+        page.screenshot(path=os.path.join(SCREENSHOT_DIR, "error_detected.png"))
+        raise Exception("Application crashed on load")
 
-    # Expect some dashboard content
-    # Use .first to pick the first occurrence if multiple exist, or use a more specific locator
-    # The dashboard header says "سلام، آنـجـلا دلا 👋"
-    expect(page.get_by_role("heading", name="سلام، آنـجـلا دلا").first).to_be_visible()
+    # A fresh browser context has no stored auth token, so the app renders
+    # AuthScreen (components/AuthScreen.tsx) - the one screen this check can
+    # verify without a running backend.
+    page.get_by_role("heading", name="iCompetency").first.wait_for(state="visible", timeout=10000)
+    page.get_by_role("button", name="ورود به حساب").first.wait_for(state="visible", timeout=10000)
 
-    # Take a screenshot
-    page.screenshot(path="/home/jules/verification/dashboard.png")
-    print("Dashboard loaded successfully, screenshot taken.")
+    page.screenshot(path=os.path.join(SCREENSHOT_DIR, "auth_screen.png"))
+    print("App loaded successfully (auth screen rendered), screenshot taken.")
+
 
 if __name__ == "__main__":
     with sync_playwright() as p:
@@ -39,5 +48,6 @@ if __name__ == "__main__":
             verify_app_loads(page)
         except Exception as e:
             print(f"Verification failed: {e}")
-        finally:
             browser.close()
+            sys.exit(1)
+        browser.close()

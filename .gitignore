@@ -4,6 +4,7 @@ node_modules/
 # Build output
 dist/
 dist-ssr/
+verification/
 
 # Environment files
 .env
