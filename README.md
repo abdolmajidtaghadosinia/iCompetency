@@ -19,5 +19,3 @@ React/Vite frontend plus a raw PHP/MySQL backend for server-authoritative user p
    `npm run dev`
 
 Do not put AI provider keys in frontend `.env` files. Browser AI calls go through authenticated `POST /ai/generate` on the PHP backend.
-"# iCompetency" 
-"# iCompetency" 
