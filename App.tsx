@@ -8,6 +8,7 @@ import VerifiedResume from './components/VerifiedResume';
 import BackgroundQuotes from './components/BackgroundQuotes';
 import BigFiveGame from './components/BigFiveGame';
 import AuthScreen from './components/AuthScreen';
+import Toast, { ToastData } from './components/Toast';
 
 // Methodology Games
 import FiveWhysGame from './components/FiveWhysGame';
@@ -110,8 +111,10 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState("");
   const [darkMode, setDarkMode] = useState(false);
+  const [toast, setToast] = useState<ToastData | null>(null);
 
   const errorMessage = (error: unknown, fallback = 'عملیات ناموفق بود.') => error instanceof Error ? error.message : fallback;
+  const showError = (error: unknown, fallback?: string) => setToast({ message: errorMessage(error, fallback), type: 'error' });
 
   const applyServerProfile = (profile: UserProfile) => {
     setUser(prev => mergeAccountFields(profile, prev));
@@ -212,7 +215,7 @@ function App() {
       applyServerProfile(result.profile);
       changeView(nextView);
     } catch (error) {
-      alert(errorMessage(error));
+      showError(error);
     } finally {
       setLoading(false);
     }
@@ -250,7 +253,7 @@ function App() {
       const result = await submitMemoryProgress(gameType, score, rawScore);
       applyServerProfile(result.profile);
     } catch (error) {
-      alert(errorMessage(error, 'ثبت پیشرفت حافظه ناموفق بود.'));
+      showError(error, 'ثبت پیشرفت حافظه ناموفق بود.');
     }
   };
 
@@ -289,6 +292,7 @@ function App() {
   return (
     <div className={`flex h-screen font-sans overflow-hidden relative transition-colors duration-300 ${darkMode ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-900'}`}>
       <BackgroundQuotes />
+      {toast && <Toast {...toast} onDismiss={() => setToast(null)} />}
 
       <Sidebar
         currentView={view}
