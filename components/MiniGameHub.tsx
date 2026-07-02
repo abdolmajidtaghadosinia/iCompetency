@@ -1,8 +1,9 @@
 
 import React from 'react';
 import { AppView, UserProfile } from '../types';
-import { 
-  Layers, Calculator, Zap, Box, Compass, Eye, LayoutGrid, BrainCircuit, Lock, CheckCircle2, Play, Grid, Search
+import {
+  Layers, Calculator, Zap, Box, Compass, Eye, LayoutGrid, BrainCircuit, Lock, CheckCircle2, Play, Grid, Search,
+  HelpCircle, Target, Network
 } from 'lucide-react';
 import { toPersianNum } from '../utils';
 
@@ -10,6 +11,56 @@ interface Props {
   onSelectGame: (view: AppView) => void;
   user: UserProfile;
 }
+
+interface GameCardData {
+  id: AppView;
+  code: string;
+  title: string;
+  description: string;
+  icon: React.ReactNode;
+  gradient: string;
+  accent: string;
+  bar: string;
+  progress: number;
+}
+
+const GameCard: React.FC<{ game: GameCardData; index: number; onSelectGame: (view: AppView) => void }> = ({ game, index, onSelectGame }) => (
+  <div
+    onClick={() => onSelectGame(game.id)}
+    style={{ animationDelay: `${index * 50}ms` }}
+    className="group relative bg-white dark:bg-slate-800 rounded-3xl p-5 shadow-soft dark:shadow-none border border-slate-100 dark:border-slate-700 hover:-translate-y-2 hover:shadow-xl cursor-pointer transition-all duration-300 animate-fade-in-up"
+  >
+    <div className={`h-32 rounded-2xl bg-gradient-to-br ${game.gradient} mb-5 flex items-center justify-center relative overflow-hidden`}>
+      <div className="absolute top-3 left-3 bg-white/50 dark:bg-black/20 backdrop-blur-sm px-2 py-1 rounded-lg text-[10px] font-black text-slate-700 dark:text-white">
+        {game.code}
+      </div>
+      <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm transform transition-transform duration-500 ease-out group-hover:scale-110 group-hover:rotate-3">
+        {game.icon}
+      </div>
+    </div>
+
+    <div className="px-1">
+      <h3 className="text-lg font-black mb-1.5 text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+        {game.title}
+      </h3>
+      <p className="text-slate-500 dark:text-slate-400 text-xs font-medium mb-5 leading-relaxed line-clamp-2 min-h-[32px]">
+        {game.description}
+      </p>
+
+      <div className="space-y-4">
+        <div className="flex items-center gap-3">
+          <div className="flex-1 h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+            <div className={`h-full ${game.bar} transition-all duration-1000 ease-out`} style={{ width: `${game.progress}%` }}></div>
+          </div>
+          <span className={`text-[10px] font-bold ${game.accent}`}>{toPersianNum(game.progress)}%</span>
+        </div>
+        <button className="w-full py-3 rounded-xl bg-slate-50 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs flex items-center justify-center gap-2 group-hover:bg-slate-900 group-hover:text-white dark:group-hover:bg-indigo-600 transition-all">
+          <Play size={14} fill="currentColor" /> شروع
+        </button>
+      </div>
+    </div>
+  </div>
+);
 
 const MiniGameHub: React.FC<Props> = ({ onSelectGame, user }) => {
 
@@ -130,6 +181,42 @@ const MiniGameHub: React.FC<Props> = ({ onSelectGame, user }) => {
     }
   ];
 
+  const methodologyGames = [
+    {
+      id: AppView.MINIGAME_5WHYS,
+      code: "5W",
+      title: "پنج چرا (5 Whys)",
+      description: "ریشه‌یابی مسئله با پرسش مکرر «چرا» تا رسیدن به علت اصلی.",
+      icon: <HelpCircle className="w-8 h-8 text-cyan-600 dark:text-cyan-400" />,
+      gradient: "from-cyan-100 to-sky-50 dark:from-cyan-900/40 dark:to-sky-900/20",
+      accent: "text-cyan-600 dark:text-cyan-400",
+      bar: "bg-cyan-500",
+      progress: getProgress('analysis')
+    },
+    {
+      id: AppView.MINIGAME_SWOT,
+      code: "SWOT",
+      title: "تحلیل SWOT",
+      description: "طبقه‌بندی نقاط قوت، ضعف، فرصت و تهدید و تدوین استراتژی.",
+      icon: <Target className="w-8 h-8 text-fuchsia-600 dark:text-fuchsia-400" />,
+      gradient: "from-fuchsia-100 to-pink-50 dark:from-fuchsia-900/40 dark:to-pink-900/20",
+      accent: "text-fuchsia-600 dark:text-fuchsia-400",
+      bar: "bg-fuchsia-500",
+      progress: getProgress('analysis')
+    },
+    {
+      id: AppView.MINIGAME_CYNEFIN,
+      code: "CYN",
+      title: "چارچوب Cynefin",
+      description: "تشخیص نوع پیچیدگی موقعیت و انتخاب واکنش مدیریتی درست.",
+      icon: <Network className="w-8 h-8 text-violet-600 dark:text-violet-400" />,
+      gradient: "from-violet-100 to-purple-50 dark:from-violet-900/40 dark:to-purple-900/20",
+      accent: "text-violet-600 dark:text-violet-400",
+      bar: "bg-violet-500",
+      progress: getProgress('decisionMaking')
+    }
+  ];
+
   return (
     <div className="p-6 md:p-8 h-full overflow-y-auto bg-slate-50/50 dark:bg-slate-900 transition-colors duration-300">
       <div className="max-w-7xl mx-auto pb-12">
@@ -148,42 +235,18 @@ const MiniGameHub: React.FC<Props> = ({ onSelectGame, user }) => {
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6 lg:gap-8">
             {cognitiveGames.map((game, index) => (
-                <div 
-                    key={game.id}
-                    onClick={() => onSelectGame(game.id)}
-                    style={{ animationDelay: `${index * 50}ms` }}
-                    className="group relative bg-white dark:bg-slate-800 rounded-3xl p-5 shadow-soft dark:shadow-none border border-slate-100 dark:border-slate-700 hover:-translate-y-2 hover:shadow-xl cursor-pointer transition-all duration-300 animate-fade-in-up"
-                >
-                    <div className={`h-32 rounded-2xl bg-gradient-to-br ${game.gradient} mb-5 flex items-center justify-center relative overflow-hidden`}>
-                        <div className="absolute top-3 left-3 bg-white/50 dark:bg-black/20 backdrop-blur-sm px-2 py-1 rounded-lg text-[10px] font-black text-slate-700 dark:text-white">
-                            {game.code}
-                        </div>
-                        <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm transform transition-transform duration-500 ease-out group-hover:scale-110 group-hover:rotate-3">
-                            {game.icon}
-                        </div>
-                    </div>
+                <GameCard key={game.id} game={game} index={index} onSelectGame={onSelectGame} />
+            ))}
+        </div>
 
-                    <div className="px-1">
-                        <h3 className="text-lg font-black mb-1.5 text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
-                            {game.title}
-                        </h3>
-                        <p className="text-slate-500 dark:text-slate-400 text-xs font-medium mb-5 leading-relaxed line-clamp-2 min-h-[32px]">
-                            {game.description}
-                        </p>
-                        
-                        <div className="space-y-4">
-                            <div className="flex items-center gap-3">
-                                <div className="flex-1 h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
-                                    <div className={`h-full ${game.bar} transition-all duration-1000 ease-out`} style={{width: `${game.progress}%`}}></div>
-                                </div>
-                                <span className={`text-[10px] font-bold ${game.accent}`}>{toPersianNum(game.progress)}%</span>
-                            </div>
-                            <button className="w-full py-3 rounded-xl bg-slate-50 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs flex items-center justify-center gap-2 group-hover:bg-slate-900 group-hover:text-white dark:group-hover:bg-indigo-600 transition-all">
-                                <Play size={14} fill="currentColor"/> شروع
-                            </button>
-                        </div>
-                    </div>
-                </div>
+        <div className="flex items-center gap-3 mt-12 mb-6">
+            <h2 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white">روش‌های حل مسئله</h2>
+            <p className="text-slate-500 dark:text-slate-400 text-xs font-medium">شبیه‌سازی سناریوهای واقعی کسب‌وکار با متدولوژی‌های استاندارد</p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 lg:gap-8">
+            {methodologyGames.map((game, index) => (
+                <GameCard key={game.id} game={game} index={index} onSelectGame={onSelectGame} />
             ))}
         </div>
       </div>
