@@ -1,0 +1,281 @@
+@baseUrl = https://example.com/api
+@email = test@example.com
+@password = StrongPass123
+@newPassword = NewStrongPass123
+@token = PASTE_TOKEN_HERE
+@resetToken = PASTE_RESET_TOKEN_HERE
+
+### Health
+GET {{baseUrl}}/health
+
+### Health + DB
+GET {{baseUrl}}/health?db=1
+
+### Register
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "password": "{{password}}",
+  "name": "کاربر تست",
+  "role": "متقاضی ارزیابی"
+}
+
+### Login
+# بعد از login مقدار data.token را در متغیر @token بالا قرار دهید.
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "password": "{{password}}"
+}
+
+### Forgot password
+POST {{baseUrl}}/auth/forgot-password
+Content-Type: application/json
+
+{
+  "email": "{{email}}"
+}
+
+### Reset password
+# ابتدا token بازیابی را از ایمیل یا debugResetToken بردارید.
+POST {{baseUrl}}/auth/reset-password
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "token": "{{resetToken}}",
+  "newPassword": "{{newPassword}}"
+}
+
+### Me
+GET {{baseUrl}}/auth/me
+Authorization: Bearer {{token}}
+
+### Change password
+# این درخواست رمز را تغییر می‌دهد؛ فقط در محیط تست اجرا کنید.
+POST {{baseUrl}}/auth/change-password
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "currentPassword": "{{password}}",
+  "newPassword": "{{newPassword}}"
+}
+
+### Get Profile
+GET {{baseUrl}}/profile
+Authorization: Bearer {{token}}
+
+### Update Profile
+PUT {{baseUrl}}/profile
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "کاربر تست آیکامپتنسی",
+  "role": "متقاضی ارزیابی"
+}
+
+### Safe legacy profile sync
+POST {{baseUrl}}/profile/sync
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "profile": {
+    "name": "کاربر مهاجرت‌شده",
+    "role": "متقاضی ارزیابی",
+    "currentXp": 999999,
+    "coins": 999999,
+    "unlockedNodes": ["node-final"],
+    "bigFive": {
+      "Openness": 70,
+      "Conscientiousness": 65,
+      "Extraversion": 45,
+      "Agreeableness": 60,
+      "Neuroticism": 35
+    }
+  }
+}
+
+### Cognitive report
+GET {{baseUrl}}/profile/cognitive-report
+Authorization: Bearer {{token}}
+
+### Career fit
+GET {{baseUrl}}/profile/career-fit
+Authorization: Bearer {{token}}
+
+### Game nodes
+GET {{baseUrl}}/game/nodes
+Authorization: Bearer {{token}}
+
+### Memory progress - Corsi
+POST {{baseUrl}}/game/memory-progress
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "subType": "corsi",
+  "score": 42,
+  "rawScore": 6
+}
+
+### Memory progress - Pairs
+POST {{baseUrl}}/game/memory-progress
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "subType": "pairs",
+  "score": 80,
+  "rawScore": 80
+}
+
+### Memory progress - NBack
+POST {{baseUrl}}/game/memory-progress
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "subType": "nback",
+  "score": 65,
+  "rawScore": 2.8
+}
+
+### Complete memory node
+POST {{baseUrl}}/game/complete
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "gameView": "MINIGAME_MEMORY",
+  "nodeId": "node-1",
+  "rawScore": 65,
+  "payload": {
+    "rawScores": {
+      "A9a_Corsi": 6,
+      "A9b_Paired": 80,
+      "A9c_NBack": 2.8
+    }
+  }
+}
+
+### Complete math game
+POST {{baseUrl}}/game/complete
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "gameView": "MINIGAME_MATH",
+  "nodeId": "node-2",
+  "rawScore": 420,
+  "payload": {"accuracy": 85}
+}
+
+### Big Five
+POST {{baseUrl}}/game/bigfive
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "scores": {
+    "Openness": 70,
+    "Conscientiousness": 65,
+    "Extraversion": 45,
+    "Agreeableness": 60,
+    "Neuroticism": 35
+  }
+}
+
+### Leaderboard
+GET {{baseUrl}}/leaderboard?limit=20
+Authorization: Bearer {{token}}
+
+### AI generateFiveWhysData
+POST {{baseUrl}}/ai/generate
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "task": "generateFiveWhysData",
+  "params": {}
+}
+
+### AI generateScenario
+POST {{baseUrl}}/ai/generate
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "task": "generateScenario",
+  "params": {"difficulty":"Medium","industry":"فناوری","focusArea":"Problem Solving","methodology":"Polya"}
+}
+
+### AI evaluateSession
+POST {{baseUrl}}/ai/generate
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "task": "evaluateSession",
+  "params": {"scenario":{"id":"demo","title":"سناریو تست"},"responses":[]}
+}
+
+### AI getCoachingTip
+POST {{baseUrl}}/ai/generate
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "task": "getCoachingTip",
+  "params": {"skills":{"analysis":50,"math":60}}
+}
+
+### AI generateSwotData
+POST {{baseUrl}}/ai/generate
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "task": "generateSwotData",
+  "params": {}
+}
+
+### AI generateCynefinData
+POST {{baseUrl}}/ai/generate
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "task": "generateCynefinData",
+  "params": {}
+}
+
+### AI generateFactFindingScenario
+POST {{baseUrl}}/ai/generate
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "task": "generateFactFindingScenario",
+  "params": {}
+}
+
+### AI validateTextAnswer
+POST {{baseUrl}}/ai/generate
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "task": "validateTextAnswer",
+  "params": {"context":"تحلیل پنج چرا درباره تاخیر تحویل کالا","idealText":"قطعات اولیه کمبود دارد","userText":"مواد اولیه به موقع تامین نشده است"}
+}
+
+### Logout
+POST {{baseUrl}}/auth/logout
+Authorization: Bearer {{token}}
