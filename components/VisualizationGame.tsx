@@ -1,7 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
-import { Box, Check, X, Scan, TrendingUp, ArrowRight, RotateCw, HelpCircle } from 'lucide-react';
+import { Box, Check, X, TrendingUp, ArrowRight, RotateCw, HelpCircle } from 'lucide-react';
 import GameIntro from './GameIntro';
+import GameResultCard from './GameResultCard';
 import { toPersianNum } from '../utils';
 
 interface Props {
@@ -11,19 +12,47 @@ interface Props {
 
 const MAX_ROUNDS = 10;
 
+// An option is a pose of the reference shape: rotated, possibly mirrored.
+// A mirrored chiral shape can never be produced by rotation alone, which is
+// what makes the mirror distractors meaningful (Shepard-Metzler style).
+interface ShapeOption {
+  deg: number;
+  mirrored: boolean;
+}
+
+// Chiral block-"F": no rotational or mirror symmetry, so every rotation and
+// every mirrored pose is visually distinct. The previous lucide <Box> icon
+// (an isometric cube) looked nearly identical under 90/180/270 rotation,
+// which made the options indistinguishable and the task guessable.
+const ChiralShape: React.FC<{ deg?: number; mirrored?: boolean; size?: number; className?: string }> = ({
+  deg = 0,
+  mirrored = false,
+  size = 48,
+  className = '',
+}) => (
+  <div
+    style={{ transform: `${mirrored ? 'scaleX(-1) ' : ''}rotate(${deg}deg)`, width: size, height: size }}
+    className="flex items-center justify-center transition-transform duration-300"
+  >
+    <svg width={size} height={size} viewBox="0 0 48 48" className={className} aria-hidden="true">
+      <path d="M14 6 h22 v9 h-13 v7 h10 v9 h-10 v11 h-9 z" fill="currentColor" />
+    </svg>
+  </div>
+);
+
 // Helper Component for Visual Angle
 const AngleGauge = ({ degrees }: { degrees: number }) => {
   const radius = 36;
   const center = 50;
   // 0 degrees is at 12 o'clock (Up) -> -90 degrees in SVG standard (which starts 3 o'clock)
-  const startAngle = -90; 
+  const startAngle = -90;
   const endAngle = startAngle + degrees;
 
   const toRad = (deg: number) => (deg * Math.PI) / 180;
 
   const x1 = center + radius * Math.cos(toRad(startAngle));
   const y1 = center + radius * Math.sin(toRad(startAngle));
-  
+
   const x2 = center + radius * Math.cos(toRad(endAngle));
   const y2 = center + radius * Math.sin(toRad(endAngle));
 
@@ -38,7 +67,7 @@ const AngleGauge = ({ degrees }: { degrees: number }) => {
             <circle cx="50" cy="50" r={radius} fill="none" stroke="#475569" strokeWidth="2" strokeDasharray="4 4" />
             {/* Start Marker (Up) */}
             <line x1="50" y1="10" x2="50" y2="18" stroke="white" strokeWidth="2" strokeLinecap="round" />
-            
+
             {/* Wedge */}
             <path d={pathData} fill="#818cf8" fillOpacity="0.4" stroke="#818cf8" strokeWidth="2" />
         </svg>
@@ -56,12 +85,12 @@ const VisualizationGame: React.FC<Props> = ({ onExit, onComplete }) => {
   const [difficulty, setDifficulty] = useState(1); // CAT Level
   const [score, setScore] = useState(0);
   const [finished, setFinished] = useState(false);
-  const [selectedOption, setSelectedOption] = useState<number | null>(null);
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
 
   // Dynamic Generation based on Difficulty
   const [targetRotation, setTargetRotation] = useState(0);
-  const [options, setOptions] = useState<number[]>([]);
+  const [options, setOptions] = useState<ShapeOption[]>([]);
 
   useEffect(() => {
       if (!showIntro) generateLevel();
@@ -72,33 +101,36 @@ const VisualizationGame: React.FC<Props> = ({ onExit, onComplete }) => {
       if (difficulty >= 3) step = 45;
       if (difficulty >= 7) step = 30;
 
-      const rot = Math.floor(Math.random() * (360 / step)) * step;
+      const steps = 360 / step;
+      const rot = Math.floor(Math.random() * steps) * step;
       const finalRot = rot === 0 ? step : rot; // Avoid 0 degree rotation
-      
+
       setTargetRotation(finalRot);
 
-      // Generate options (Correct + 2 Distractors)
-      const correct = finalRot;
-      let wrong1 = (finalRot + step) % 360;
-      let wrong2 = (finalRot - step + 360) % 360;
-      
-      // Ensure unique options
-      const uniqueOptions = new Set([correct]);
-      while (uniqueOptions.size < 3) {
-          const rand = Math.floor(Math.random() * (360 / step)) * step;
-          uniqueOptions.add(rand);
+      // Correct pose + a mirror trap + a wrong rotation. The mirror can sit at
+      // any angle (even the target's): no rotation ever equals a mirrored pose.
+      const correct: ShapeOption = { deg: finalRot, mirrored: false };
+      const mirrorTrap: ShapeOption = {
+          deg: Math.random() < 0.5 ? finalRot : Math.floor(Math.random() * steps) * step,
+          mirrored: true,
+      };
+      let wrongDeg = Math.floor(Math.random() * steps) * step;
+      while (wrongDeg === finalRot) {
+          wrongDeg = Math.floor(Math.random() * steps) * step;
       }
+      const wrongRotation: ShapeOption = { deg: wrongDeg, mirrored: false };
 
-      setOptions(Array.from(uniqueOptions).sort(() => Math.random() - 0.5));
-      setSelectedOption(null);
+      setOptions([correct, mirrorTrap, wrongRotation].sort(() => Math.random() - 0.5));
+      setSelectedIndex(null);
       setIsCorrect(null);
   }
 
-  const handleGuess = (deg: number) => {
-      if (selectedOption !== null) return;
+  const handleGuess = (idx: number) => {
+      if (selectedIndex !== null) return;
 
-      const correct = deg === targetRotation;
-      setSelectedOption(deg);
+      const opt = options[idx];
+      const correct = !opt.mirrored && opt.deg === targetRotation;
+      setSelectedIndex(idx);
       setIsCorrect(correct);
 
       if (correct) {
@@ -109,7 +141,7 @@ const VisualizationGame: React.FC<Props> = ({ onExit, onComplete }) => {
           setDifficulty(d => Math.max(1, d - 1));
           if (navigator.vibrate) navigator.vibrate(200);
       }
-      
+
       setTimeout(() => {
           if (round < MAX_ROUNDS) {
               setRound(r => r + 1);
@@ -119,17 +151,11 @@ const VisualizationGame: React.FC<Props> = ({ onExit, onComplete }) => {
       }, 1200); // Slightly longer delay to see the equation result
   };
 
-  const getRating = (s: number) => {
-      if (s >= 300) return "معمار ذهن";
-      if (s >= 150) return "طراح ارشد";
-      return "تصویرساز";
-  };
-
   if (showIntro) {
     return (
-      <GameIntro 
+      <GameIntro
         title="قدرت تجسم (A12)"
-        description="این آزمون توانایی چرخش ذهنی شما را می‌سنجد. یک شکل و مقدار چرخش آن داده می‌شود. نتیجه نهایی را انتخاب کنید."
+        description="این آزمون توانایی چرخش ذهنی شما را می‌سنجد. شکل مبدا و مقدار چرخش داده می‌شود؛ نتیجه صحیح را انتخاب کنید. مراقب گزینه‌های قرینه (آینه‌ای) باشید — قرینه با هیچ چرخشی به دست نمی‌آید!"
         icon={<Box />}
         gradientFrom="from-indigo-500"
         gradientTo="to-violet-600"
@@ -141,38 +167,31 @@ const VisualizationGame: React.FC<Props> = ({ onExit, onComplete }) => {
 
   if (finished) {
       const normalizedScore = Math.min(100, Math.round(score / 5));
-      const rating = getRating(score);
 
       return (
-        <div className="h-full flex items-center justify-center bg-indigo-50 p-4 animate-fade-in-up">
-             <div className="bg-white p-8 rounded-[2rem] shadow-2xl text-center max-w-md w-full border border-indigo-100">
-                <div className="w-20 h-20 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
-                    <Box size={40} className="text-indigo-600" />
-                </div>
-                
-                <h2 className="text-3xl font-black text-slate-800 mb-2">تحلیل فضایی (CAT)</h2>
-                <p className="text-indigo-500 font-bold mb-8 text-lg">{rating}</p>
-                
-                <div className="flex flex-col items-center gap-1 mb-8">
-                    <span className="text-5xl font-black text-slate-800">{toPersianNum(score)}</span>
-                    <span className="text-xs text-slate-400 font-bold">امتیاز خام</span>
-                </div>
-
-                <div className="bg-slate-50 rounded-xl p-4 mb-8 border border-slate-100 flex items-center justify-between">
-                     <div className="flex items-center gap-2">
-                         <Scan className="text-indigo-500" size={18} />
-                         <span className="text-sm font-bold text-slate-600">سطح دشواری نهایی</span>
-                     </div>
-                     <span className="text-xl font-black text-indigo-600">{toPersianNum(difficulty)}</span>
-                </div>
-
-                <button onClick={() => onComplete(normalizedScore)} className="w-full bg-indigo-600 text-white py-3.5 rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg hover:shadow-indigo-500/30">
-                    پایان ارزیابی
-                </button>
-            </div>
-        </div>
+        <GameResultCard
+            title="قدرت تجسم (A12)"
+            rawScore={normalizedScore}
+            scoreKey="A12"
+            metrics={[
+                { label: 'سطح دشواری نهایی', value: toPersianNum(difficulty) },
+                { label: 'امتیاز خام', value: toPersianNum(score) },
+            ]}
+            onRetry={() => {
+                setRound(1);
+                setDifficulty(1);
+                setScore(0);
+                setFinished(false);
+                setSelectedIndex(null);
+                setIsCorrect(null);
+                generateLevel();
+            }}
+            onComplete={() => onComplete(normalizedScore)}
+        />
       )
   }
+
+  const selectedOption = selectedIndex !== null ? options[selectedIndex] : null;
 
   return (
     <div className="h-full bg-slate-900 text-white flex flex-col items-center justify-center p-4 relative overflow-hidden">
@@ -189,12 +208,12 @@ const VisualizationGame: React.FC<Props> = ({ onExit, onComplete }) => {
 
         {/* --- The Visual Equation --- */}
         <div className="w-full max-w-2xl mb-12 flex items-center justify-between px-4 z-10 gap-2 md:gap-4">
-            
+
             {/* 1. Original Shape */}
             <div className="flex flex-col items-center gap-3">
                 <div className="w-24 h-24 md:w-32 md:h-32 bg-slate-800 rounded-2xl border-2 border-slate-600 flex items-center justify-center shadow-lg relative">
                     <div className="absolute -top-3 bg-slate-700 text-slate-300 text-[10px] font-bold px-2 py-0.5 rounded-md border border-slate-600">مبدا</div>
-                    <Box size={48} className="text-indigo-400 drop-shadow-lg" />
+                    <ChiralShape size={56} className="text-indigo-400 drop-shadow-lg" />
                 </div>
             </div>
 
@@ -220,7 +239,7 @@ const VisualizationGame: React.FC<Props> = ({ onExit, onComplete }) => {
             <div className="flex flex-col items-center gap-3">
                 <div className={`w-24 h-24 md:w-32 md:h-32 rounded-2xl border-2 border-dashed flex items-center justify-center shadow-inner transition-all duration-300 ${selectedOption !== null ? (isCorrect ? 'bg-emerald-500/20 border-emerald-500' : 'bg-red-500/20 border-red-500') : 'bg-slate-800/50 border-slate-600'}`}>
                     {selectedOption !== null ? (
-                        <Box size={48} style={{ transform: `rotate(${selectedOption}deg)` }} className={isCorrect ? 'text-emerald-400' : 'text-red-400'} />
+                        <ChiralShape size={56} deg={selectedOption.deg} mirrored={selectedOption.mirrored} className={isCorrect ? 'text-emerald-400' : 'text-red-400'} />
                     ) : (
                         <HelpCircle size={32} className="text-slate-600 animate-pulse" />
                     )}
@@ -232,32 +251,33 @@ const VisualizationGame: React.FC<Props> = ({ onExit, onComplete }) => {
 
         {/* Options Grid */}
         <div className="grid grid-cols-3 gap-4 md:gap-8 w-full max-w-xl px-4 z-10">
-            {options.map((optDeg, idx) => {
+            {options.map((opt, idx) => {
+                const isTheCorrectOption = !opt.mirrored && opt.deg === targetRotation;
                 let btnClass = "bg-white text-indigo-950 hover:scale-105 hover:shadow-xl hover:bg-indigo-50";
-                if (selectedOption !== null) {
-                    if (optDeg === selectedOption) {
-                        btnClass = isCorrect 
-                            ? "bg-emerald-500 text-white scale-105 ring-4 ring-emerald-500/30 border-emerald-400" 
+                if (selectedIndex !== null) {
+                    if (idx === selectedIndex) {
+                        btnClass = isCorrect
+                            ? "bg-emerald-500 text-white scale-105 ring-4 ring-emerald-500/30 border-emerald-400"
                             : "bg-red-500 text-white scale-95 ring-4 ring-red-500/30 border-red-400";
-                    } else if (optDeg === targetRotation) {
+                    } else if (isTheCorrectOption) {
                         // Highlight the correct answer if user got it wrong
-                        btnClass = "bg-emerald-100 text-emerald-800 opacity-50 scale-95 border-emerald-200"; 
+                        btnClass = "bg-emerald-100 text-emerald-800 opacity-50 scale-95 border-emerald-200";
                     } else {
                         btnClass = "bg-slate-800 text-slate-500 opacity-20 scale-90 border-slate-700";
                     }
                 }
 
                 return (
-                    <button 
+                    <button
                         key={idx}
-                        onClick={() => handleGuess(optDeg)}
-                        disabled={selectedOption !== null}
+                        onClick={() => handleGuess(idx)}
+                        disabled={selectedIndex !== null}
                         className={`aspect-square rounded-2xl flex flex-col items-center justify-center transition-all duration-300 shadow-lg border-b-4 border-black/10 active:border-b-0 active:translate-y-1 relative overflow-hidden ${btnClass}`}
                     >
                         <div className="absolute top-2 left-2 text-[10px] font-bold opacity-40">{toPersianNum(idx + 1)}</div>
-                        <Box size={40} style={{ transform: `rotate(${optDeg}deg)` }} strokeWidth={2} className="drop-shadow-sm" />
-                        
-                        {selectedOption !== null && optDeg === selectedOption && (
+                        <ChiralShape size={44} deg={opt.deg} mirrored={opt.mirrored} className="drop-shadow-sm" />
+
+                        {selectedIndex !== null && idx === selectedIndex && (
                             <div className="absolute inset-0 flex items-center justify-center bg-black/10 backdrop-blur-[1px]">
                                 {isCorrect ? <Check size={32} className="text-white" /> : <X size={32} className="text-white" />}
                             </div>
@@ -266,9 +286,9 @@ const VisualizationGame: React.FC<Props> = ({ onExit, onComplete }) => {
                 )
             })}
         </div>
-        
+
         <div className="mt-8 text-slate-500 text-xs font-medium max-w-md text-center leading-relaxed">
-            گزینه‌ای را انتخاب کنید که حاصل چرخش شکل مبدا به اندازه زاویه نشان داده شده باشد.
+            گزینه‌ای را انتخاب کنید که حاصل چرخش شکل مبدا به اندازه زاویه نشان داده شده باشد. گزینه‌های قرینه (آینه‌ای) پاسخ صحیح نیستند.
         </div>
     </div>
   );
