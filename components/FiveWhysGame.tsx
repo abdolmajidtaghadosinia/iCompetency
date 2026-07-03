@@ -19,6 +19,7 @@ const FiveWhysGame: React.FC<Props> = ({ onExit, onComplete }) => {
   
   const [gameState, setGameState] = useState<'playing' | 'rabbit_hole' | 'finished'>('playing');
   const [feedback, setFeedback] = useState<string>('');
+  const [serviceNotice, setServiceNotice] = useState<string>('');
   const [score, setScore] = useState(0);
   const [rabbitHoleTime, setRabbitHoleTime] = useState(0);
 
@@ -43,18 +44,30 @@ const FiveWhysGame: React.FC<Props> = ({ onExit, onComplete }) => {
 
   const handleSubmit = async () => {
       if (!userAnswer.trim() || !data) return;
-      
+
       setValidating(true);
+      setServiceNotice('');
       const levelData = data.levels[currentLevel];
-      
-      // AI Semantic Check
-      const result = await validateTextAnswer(
-          userAnswer, 
-          levelData.idealAnswer, 
-          `Problem: ${data.problemStatement}. Previous Cause: ${currentLevel > 0 ? data.levels[currentLevel-1].idealAnswer : 'Initial Problem'}`
-      );
+
+      // AI Semantic Check. A grader outage (fallback flag or network error)
+      // must not be scored as a wrong answer - no rabbit hole, no penalty.
+      let result;
+      try {
+          result = await validateTextAnswer(
+              userAnswer,
+              levelData.idealAnswer,
+              `Problem: ${data.problemStatement}. Previous Cause: ${currentLevel > 0 ? data.levels[currentLevel-1].idealAnswer : 'Initial Problem'}`
+          );
+      } catch {
+          result = { isCorrect: false, feedback: '', similarity: 0, serviceUnavailable: true };
+      }
 
       setValidating(false);
+
+      if (result.serviceUnavailable) {
+          setServiceNotice('سرویس ارزیابی هوش مصنوعی موقتاً در دسترس نیست؛ پاسخ شما بررسی نشد. لطفاً دوباره تلاش کنید.');
+          return;
+      }
 
       if (result.isCorrect) {
           setScore(s => s + 20);
@@ -168,6 +181,12 @@ const FiveWhysGame: React.FC<Props> = ({ onExit, onComplete }) => {
             </div>
         ) : (
             <div className="mt-auto">
+                {serviceNotice && (
+                    <div className="mb-4 flex items-start gap-2 bg-amber-500/10 border border-amber-500/40 text-amber-300 text-sm font-bold rounded-xl p-4 animate-fade-in">
+                        <AlertTriangle size={18} className="shrink-0 mt-0.5" />
+                        {serviceNotice}
+                    </div>
+                )}
                 <div className="relative">
                     <textarea
                         value={userAnswer}

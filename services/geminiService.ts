@@ -23,12 +23,21 @@ export const generateFiveWhysData = async (): Promise<FiveWhysData> => {
   return aiGenerate<FiveWhysData>('generateFiveWhysData');
 };
 
+export interface TextValidationResult {
+  isCorrect: boolean;
+  feedback: string;
+  similarity: number;
+  // Set by the backend fallback when the AI grader itself failed - callers
+  // must treat this as "try again later", not as a wrong answer.
+  serviceUnavailable?: boolean;
+}
+
 export const validateTextAnswer = async (
   userText: string,
   idealText: string,
   context: string
-): Promise<{ isCorrect: boolean; feedback: string; similarity: number }> => {
-  return aiGenerate<{ isCorrect: boolean; feedback: string; similarity: number }>('validateTextAnswer', {
+): Promise<TextValidationResult> => {
+  return aiGenerate<TextValidationResult>('validateTextAnswer', {
     userText,
     idealText,
     context,

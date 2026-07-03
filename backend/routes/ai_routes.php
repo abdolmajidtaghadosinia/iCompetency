@@ -156,7 +156,9 @@ function ai_spec_five_whys(): array
 function ai_spec_validate_text(array $p): array
 {
     $prompt = 'Context: '.clean_string($p['context'] ?? '', 4000)."\nIdeal: ".clean_string($p['idealText'] ?? '', 2000)."\nUser: ".clean_string($p['userText'] ?? '', 2000)."\nReturn JSON with semantic match and Persian feedback.";
-    return ['prompt'=>$prompt, 'schema'=>schema_object(['isCorrect'=>bool_schema(),'similarity'=>int_schema(),'feedback'=>str_schema()], ['isCorrect','similarity','feedback']), 'fallback'=>['isCorrect'=>false,'similarity'=>0,'feedback'=>'خطا در ارتباط با هوش مصنوعی. پاسخ برای بررسی دستی ثبت شود.']];
+    // serviceUnavailable lets the client tell "the grader is down" apart from
+    // "the answer is wrong" - callers must not penalize the user on fallback.
+    return ['prompt'=>$prompt, 'schema'=>schema_object(['isCorrect'=>bool_schema(),'similarity'=>int_schema(),'feedback'=>str_schema()], ['isCorrect','similarity','feedback']), 'fallback'=>['isCorrect'=>false,'similarity'=>0,'feedback'=>'سرویس ارزیابی هوش مصنوعی موقتاً در دسترس نیست.','serviceUnavailable'=>true]];
 }
 
 function ai_spec_swot(): array
