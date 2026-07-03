@@ -5,8 +5,8 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['Vazirmatn', 'sans-serif'],
-        mono: ['Vazirmatn', 'monospace'],
+        sans: ['Arad', 'sans-serif'],
+        mono: ['Arad', 'monospace'],
       },
       colors: {
         primary: {
