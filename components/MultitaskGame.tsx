@@ -1,7 +1,8 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { LayoutGrid, Clock, Split, TrendingUp, Calculator, Palette, Check, X } from 'lucide-react';
 import GameIntro from './GameIntro';
+import GameResultCard from './GameResultCard';
 import { toPersianNum } from '../utils';
 
 interface Props {
@@ -11,27 +12,37 @@ interface Props {
 
 const GAME_DURATION = 40;
 
+// Per-round response deadline, shrinking with difficulty. Without it both
+// tasks could be answered serially at leisure (only the global clock ran),
+// which defeats the point of a simultaneous dual-task measure.
+const roundDeadlineMs = (difficulty: number) => Math.max(4000, 8000 - difficulty * 400);
+
 const MultitaskGame: React.FC<Props> = ({ onExit, onComplete }) => {
   const [showIntro, setShowIntro] = useState(true);
   const [timeLeft, setTimeLeft] = useState(GAME_DURATION);
   const [score, setScore] = useState(0);
   const [difficulty, setDifficulty] = useState(1);
-  
+
   // Task 1: Math (Even/Odd)
   const [number, setNumber] = useState(0);
   const [mathAnswer, setMathAnswer] = useState<boolean | null>(null);
-  
+
   // Task 2: Color Matching
   const [colorText, setColorText] = useState('قرمز');
   const [colorHex, setColorHex] = useState('red');
   const [colorAnswer, setColorAnswer] = useState<boolean | null>(null);
-  
+
   const [finished, setFinished] = useState(false);
   const [attempts, setAttempts] = useState(0);
   const [correctCount, setCorrectCount] = useState(0);
 
+  // Round-deadline bookkeeping
+  const [roundKey, setRoundKey] = useState(0);
+  const roundStartRef = useRef(0);
+  const roundDoneRef = useRef(false);
+
   useEffect(() => {
-    if (showIntro) return;
+    if (showIntro || finished) return;
 
     generateTasks();
     const timer = setInterval(() => {
@@ -45,7 +56,23 @@ const MultitaskGame: React.FC<Props> = ({ onExit, onComplete }) => {
         });
     }, 100);
     return () => clearInterval(timer);
-  }, [showIntro]);
+  }, [showIntro, finished]);
+
+  // Round deadline: an unanswered round counts as a failed attempt.
+  useEffect(() => {
+    if (showIntro || finished) return;
+
+    const t = setTimeout(() => {
+        if (roundDoneRef.current) return;
+        setAttempts(prev => prev + 1);
+        setScore(s => Math.max(0, s - (5 * difficulty)));
+        setDifficulty(d => Math.max(1, d - 1));
+        if (navigator.vibrate) navigator.vibrate(200);
+        generateTasks();
+    }, roundDeadlineMs(difficulty));
+
+    return () => clearTimeout(t);
+  }, [roundKey, showIntro, finished]);
 
   // Handle Keyboard Inputs
   useEffect(() => {
@@ -83,20 +110,24 @@ const MultitaskGame: React.FC<Props> = ({ onExit, onComplete }) => {
   const generateTasks = () => {
       setMathAnswer(null);
       setColorAnswer(null);
-      
+
       const maxNum = difficulty > 5 ? 500 : 100;
       setNumber(Math.floor(Math.random() * maxNum));
 
       const colors = [
-          {name: 'قرمز', hex: '#ef4444'}, 
-          {name: 'آبی', hex: '#3b82f6'}, 
+          {name: 'قرمز', hex: '#ef4444'},
+          {name: 'آبی', hex: '#3b82f6'},
           {name: 'سبز', hex: '#22c55e'}
       ];
       const textIdx = Math.floor(Math.random() * 3);
       const hexIdx = Math.random() > 0.5 ? textIdx : Math.floor(Math.random() * 3);
-      
+
       setColorText(colors[textIdx].name);
       setColorHex(colors[hexIdx].hex);
+
+      roundDoneRef.current = false;
+      roundStartRef.current = Date.now();
+      setRoundKey(k => k + 1);
   };
 
   const handleMathInput = (isEven: boolean) => {
@@ -108,6 +139,7 @@ const MultitaskGame: React.FC<Props> = ({ onExit, onComplete }) => {
   };
 
   const evaluateRound = () => {
+      roundDoneRef.current = true; // stop the round-deadline timer from double-counting
       setAttempts(prev => prev + 1);
       
       const correctEven = (number % 2 === 0);
@@ -148,42 +180,33 @@ const MultitaskGame: React.FC<Props> = ({ onExit, onComplete }) => {
 
   if (finished) {
       const accuracy = attempts > 0 ? Math.round((correctCount / attempts) * 100) : 0;
-      const normalizedScore = Math.min(100, Math.round(score / 30)); 
+      const normalizedScore = Math.min(100, Math.round(score / 30));
 
       return (
-        <div className="h-full flex items-center justify-center bg-slate-900 p-4 animate-fade-in-up font-sans">
-            <div className="bg-slate-800 p-8 rounded-[2rem] shadow-2xl text-center max-w-md w-full border border-slate-700">
-               <div className="w-20 h-20 bg-purple-900/50 rounded-full flex items-center justify-center mx-auto mb-6 shadow-md border border-purple-500/20">
-                   <Split size={40} className="text-purple-400" />
-               </div>
-               
-               <h2 className="text-2xl font-black text-white mb-6">پایان پردازش موازی</h2>
-               
-               <div className="flex flex-col items-center justify-center gap-1 mb-8">
-                   <span className="text-5xl font-black text-purple-400">{toPersianNum(score)}</span>
-                   <span className="text-slate-500 font-bold text-sm">امتیاز خام</span>
-               </div>
-               
-               <div className="grid grid-cols-2 gap-4 mb-8">
-                    <div className="bg-slate-700/50 rounded-2xl p-4 border border-slate-600">
-                        <div className="font-black text-white text-xl">{toPersianNum(accuracy)}٪</div>
-                        <div className="text-[10px] font-bold text-slate-400">دقت</div>
-                    </div>
-                    <div className="bg-slate-700/50 rounded-2xl p-4 border border-slate-600">
-                        <div className="font-black text-white text-xl">{toPersianNum(difficulty)}</div>
-                        <div className="text-[10px] font-bold text-slate-400">سطح نهایی</div>
-                    </div>
-               </div>
-
-               <button onClick={() => onComplete(normalizedScore)} className="w-full bg-purple-600 text-white py-3.5 rounded-xl font-bold hover:bg-purple-500 transition-all active:scale-95">
-                   ثبت نتیجه
-               </button>
-           </div>
-       </div>
+        <GameResultCard
+            title="مدیریت همزمان (A15)"
+            rawScore={normalizedScore}
+            scoreKey="A15"
+            metrics={[
+                { label: 'دقت', value: toPersianNum(accuracy) + '٪' },
+                { label: 'سطح نهایی', value: toPersianNum(difficulty) },
+            ]}
+            onRetry={() => {
+                setScore(0);
+                setDifficulty(1);
+                setAttempts(0);
+                setCorrectCount(0);
+                setTimeLeft(GAME_DURATION);
+                setFinished(false); // main effect restarts timer + tasks
+            }}
+            onComplete={() => onComplete(normalizedScore)}
+        />
       );
   }
 
   const progressPercent = (timeLeft / GAME_DURATION) * 100;
+  // Re-rendered every 100ms by the global clock tick, so this stays live.
+  const roundRemaining = Math.max(0, 1 - (Date.now() - roundStartRef.current) / roundDeadlineMs(difficulty));
 
   return (
     <div className="h-full bg-slate-950 text-white flex flex-col p-2 relative overflow-hidden font-sans">
@@ -200,8 +223,16 @@ const MultitaskGame: React.FC<Props> = ({ onExit, onComplete }) => {
         </div>
 
         {/* Timer Line */}
-        <div className="w-full h-1 bg-slate-900 mb-4 rounded-full overflow-hidden">
+        <div className="w-full h-1 bg-slate-900 mb-2 rounded-full overflow-hidden">
             <div className="h-full bg-purple-500 transition-all duration-100 ease-linear" style={{ width: `${progressPercent}%` }}></div>
+        </div>
+
+        {/* Round Deadline Line */}
+        <div className="w-full flex items-center gap-2 mb-4">
+            <span className="text-[9px] font-bold text-amber-500/80 uppercase shrink-0">مهلت این دور</span>
+            <div className="flex-1 h-1 bg-slate-900 rounded-full overflow-hidden">
+                <div className={`h-full transition-all duration-100 ease-linear ${roundRemaining < 0.3 ? 'bg-red-500' : 'bg-amber-500'}`} style={{ width: `${roundRemaining * 100}%` }}></div>
+            </div>
         </div>
 
         <div className="flex-1 flex gap-2 md:gap-4 overflow-hidden">
