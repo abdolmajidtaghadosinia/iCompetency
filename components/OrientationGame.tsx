@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Compass, Navigation, RotateCw, Target, Move, LocateFixed, Zap, HelpCircle } from 'lucide-react';
 import GameIntro from './GameIntro';
+import GameResultCard from './GameResultCard';
 import { toPersianNum } from '../utils';
 
 interface Props {
@@ -214,26 +215,28 @@ const OrientationGame: React.FC<Props> = ({ onExit, onComplete }) => {
   }
 
   if (gameState === 'finished') {
-      const normalizedScore = Math.min(100, Math.round(score / 50)); 
-      const rating = getRating(score);
+      const normalizedScore = Math.min(100, Math.round(score / 50));
 
       return (
-        <div className="h-full flex items-center justify-center bg-slate-900 p-4 animate-fade-in-up font-sans">
-             <div className="bg-slate-800 p-8 rounded-[2rem] shadow-2xl text-center max-w-md w-full border border-slate-700 relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-cyan-500 to-blue-500"></div>
-                <h2 className="text-2xl font-black text-white mb-2">عملیات ناوبری پایان یافت</h2>
-                <div className="inline-block px-4 py-1 rounded-full bg-cyan-900/30 text-cyan-400 font-bold text-sm mb-8 border border-cyan-500/20">
-                    {rating}
-                </div>
-                <div className="flex flex-col items-center gap-1 mb-8">
-                   <span className="text-5xl font-black text-white tracking-tight">{toPersianNum(score)}</span>
-                   <span className="text-xs text-slate-400 font-bold">امتیاز کل</span>
-                </div>
-                <button onClick={() => onComplete(normalizedScore)} className="w-full bg-cyan-600 text-white py-4 rounded-xl font-bold hover:bg-cyan-500 transition-all shadow-lg active:scale-95">
-                   ثبت رکورد
-                </button>
-            </div>
-        </div>
+        <GameResultCard
+            title="جهت‌یابی (A13)"
+            rawScore={normalizedScore}
+            scoreKey="A13"
+            metrics={[
+                { label: 'پاسخ صحیح', value: toPersianNum(correctCount) },
+                { label: 'امتیاز کل', value: toPersianNum(score), subtext: getRating(score) },
+            ]}
+            onRetry={() => {
+                setTimeLeft(GAME_DURATION);
+                setScore(0);
+                setCombo(1);
+                setDifficulty(1);
+                setCorrectCount(0);
+                setGameState('playing');
+                generateRound(false);
+            }}
+            onComplete={() => onComplete(normalizedScore)}
+        />
       );
   }
 
