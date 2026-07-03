@@ -28,7 +28,9 @@ const FactFindingGame: React.FC<Props> = ({ onExit, onComplete }) => {
   
   const [gameState, setGameState] = useState<'playing' | 'result'>('playing');
   const [result, setResult] = useState<{ isWin: boolean; feedback: string; score: number } | null>(null);
-  const [totalScore, setTotalScore] = useState(0);
+  // Best single round counts (matches the server's best-attempt policy).
+  // Summing across replays let users farm an unbounded score by replaying.
+  const [bestScore, setBestScore] = useState(0);
 
   // Initial Scenario Load
   useEffect(() => {
@@ -73,14 +75,12 @@ const FactFindingGame: React.FC<Props> = ({ onExit, onComplete }) => {
 
     if (isWin) {
       sfx.playSuccess();
-      // Efficiency Bonus
-      const efficiency = (currentBudget / scenario.budget) * 30;
       // Information Gathering Bonus (Crucial clues found)
       let crucialFound = 0;
       let totalCrucial = 0;
-      
-      scenario.categories.forEach(cat => 
-        cat.sources.forEach(src => 
+
+      scenario.categories.forEach(cat =>
+        cat.sources.forEach(src =>
             src.actions.forEach(act => {
                 if (act.isCrucial) totalCrucial++;
                 if (act.isCrucial && performedActions.includes(act.id)) crucialFound++;
@@ -89,6 +89,9 @@ const FactFindingGame: React.FC<Props> = ({ onExit, onComplete }) => {
       );
 
       const investigationBonus = (crucialFound / Math.max(1, totalCrucial)) * 70;
+      // Efficiency only counts when the win is evidence-based: a blind guess
+      // with an untouched budget must not earn the full frugality bonus.
+      const efficiency = crucialFound > 0 ? (currentBudget / scenario.budget) * 30 : 0;
       roundScore = Math.round(efficiency + investigationBonus);
     } else {
       sfx.playError();
@@ -100,7 +103,7 @@ const FactFindingGame: React.FC<Props> = ({ onExit, onComplete }) => {
       feedback: selectedOption.feedback,
       score: roundScore
     });
-    setTotalScore(prev => prev + roundScore);
+    setBestScore(prev => Math.max(prev, roundScore));
     setGameState('result');
   };
 
@@ -211,10 +214,20 @@ const FactFindingGame: React.FC<Props> = ({ onExit, onComplete }) => {
                         {result.feedback}
                     </p>
                     {result.isWin && (
-                        <div className="mb-8 flex justify-center gap-4">
-                            <div className="bg-emerald-50 px-4 py-2 rounded-xl text-emerald-700 font-bold border border-emerald-100">
-                                امتیاز: {toPersianNum(result.score)}
+                        <div className="mb-8 flex flex-col items-center gap-2">
+                            <div className="flex justify-center gap-3">
+                                <div className="bg-emerald-50 px-4 py-2 rounded-xl text-emerald-700 font-bold border border-emerald-100">
+                                    امتیاز این دور: {toPersianNum(result.score)}
+                                </div>
+                                <div className="bg-slate-50 px-4 py-2 rounded-xl text-slate-600 font-bold border border-slate-100">
+                                    بهترین امتیاز: {toPersianNum(bestScore)}
+                                </div>
                             </div>
+                            {result.score === 0 && (
+                                <p className="text-xs text-amber-600 font-bold">
+                                    بدون جمع‌آوری سرنخ کلیدی، حدس درست امتیازی ثبت نمی‌کند.
+                                </p>
+                            )}
                         </div>
                     )}
                     <div className="flex flex-col gap-3">
@@ -225,8 +238,8 @@ const FactFindingGame: React.FC<Props> = ({ onExit, onComplete }) => {
                             <RefreshCw size={18} />
                             بررسی مجدد پرونده
                         </button>
-                        <button 
-                            onClick={() => onComplete(totalScore)}
+                        <button
+                            onClick={() => onComplete(bestScore)}
                             className="w-full py-4 rounded-xl font-bold text-slate-600 bg-slate-200 hover:bg-slate-300 transition-colors"
                         >
                             پایان و خروج
