@@ -17,6 +17,7 @@ const SwotGame: React.FC<Props> = ({ onExit, onComplete }) => {
   // Phase 1 State
   const [currentIndex, setCurrentIndex] = useState(0);
   const [score, setScore] = useState(0);
+  const [sortCorrect, setSortCorrect] = useState(0);
   const [feedback, setFeedback] = useState<{correct: boolean, msg: string} | null>(null);
   
   // Phase 2 State
@@ -38,7 +39,10 @@ const SwotGame: React.FC<Props> = ({ onExit, onComplete }) => {
         msg: isCorrect ? "دقیقاً!" : `اشتباه. این مورد ${item.category} است زیرا: ${item.reason}`
     });
 
-    if (isCorrect) setScore(s => s + 10);
+    if (isCorrect) {
+        setScore(s => s + 10);
+        setSortCorrect(c => c + 1);
+    }
 
     setTimeout(() => {
         setFeedback(null);
@@ -76,6 +80,11 @@ const SwotGame: React.FC<Props> = ({ onExit, onComplete }) => {
   }
 
   if (phase === 'finished') {
+      // AI generates 8-10 items, so the raw point total has a variable maximum.
+      // Normalize: sorting is worth 50 (proportional to items) and picking the
+      // right strategy is worth 50, for a fixed 0-100 scale.
+      const normalizedScore = Math.round((sortCorrect / Math.max(1, data.items.length)) * 50)
+        + (strategyResult?.correct ? 50 : 0);
       return (
         <div className="h-full flex items-center justify-center bg-slate-50 animate-fade-in-up">
             <div className="max-w-md w-full bg-white p-8 rounded-[2rem] shadow-xl text-center border border-slate-100">
@@ -84,8 +93,14 @@ const SwotGame: React.FC<Props> = ({ onExit, onComplete }) => {
                  </div>
                  <h2 className="text-2xl font-bold text-slate-800 mb-2">پایان تحلیل استراتژیک</h2>
                  <p className="text-slate-500 mb-6">شما فرآیند تحلیل و تدوین استراتژی را تکمیل کردید.</p>
-                 <div className="text-5xl font-black text-blue-600 mb-8">{toPersianNum(score)}</div>
-                 <button onClick={() => onComplete(score)} className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition-colors">
+                 <div className="text-5xl font-black text-blue-600 mb-2">{toPersianNum(normalizedScore)}<span className="text-xl text-slate-400">/۱۰۰</span></div>
+                 <div className="flex justify-center gap-3 text-xs font-bold text-slate-500 mb-8">
+                     <span className="bg-slate-100 px-3 py-1 rounded-full">طبقه‌بندی: {toPersianNum(sortCorrect)}/{toPersianNum(data.items.length)}</span>
+                     <span className={`px-3 py-1 rounded-full ${strategyResult?.correct ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>
+                        استراتژی: {strategyResult?.correct ? 'صحیح' : 'ناموفق'}
+                     </span>
+                 </div>
+                 <button onClick={() => onComplete(normalizedScore)} className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition-colors">
                     ثبت در کارنامه
                  </button>
             </div>

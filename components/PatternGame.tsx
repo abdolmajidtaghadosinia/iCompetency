@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Grid, HelpCircle } from 'lucide-react';
 import { toPersianNum } from '../utils';
 import GameShell from './GameShell';
+import GameResultCard from './GameResultCard';
 import { sfx } from '../services/audioService';
 
 interface Props {
@@ -156,12 +157,22 @@ const PatternGame: React.FC<Props> = ({ onExit, onComplete }) => {
   };
 
   if (gameState === 'finished') {
+      // The cumulative 10*level score passes 550 after ~10 solved rounds while
+      // the A10Plus norm is mean 50 / sd 20 - normalize to 0-100 so the
+      // T-score can actually discriminate instead of clamping at 80.
+      const normalizedScore = Math.min(100, Math.round(score / 5));
       return (
-          <div className="flex flex-col items-center justify-center h-full bg-slate-50 p-8">
-              <h2 className="text-2xl font-bold mb-4">پایان بازی الگو</h2>
-              <div className="text-5xl font-black text-indigo-600 mb-8">{toPersianNum(score)}</div>
-              <button onClick={() => onComplete(score)} className="px-8 py-3 bg-indigo-600 text-white rounded-xl font-bold">ثبت نتیجه</button>
-          </div>
+          <GameResultCard
+              title="تطابق الگو (A10+)"
+              rawScore={normalizedScore}
+              scoreKey="A10Plus"
+              metrics={[
+                  { label: 'سطح نهایی', value: toPersianNum(level) },
+                  { label: 'امتیاز خام', value: toPersianNum(score) },
+              ]}
+              onRetry={() => { setScore(0); setLevel(1); setLives(3); setMatrix([]); setFeedback(null); setGameState('playing'); }}
+              onComplete={() => onComplete(normalizedScore)}
+          />
       )
   }
 
