@@ -199,6 +199,9 @@ export interface CareerProfile {
 export const getCareerFit = (user: any): CareerProfile[] => {
     // Default safe values if data missing
     const scores = user.skills || {};
+    // Note: BigFiveGame scores the 'Neuroticism' key so that HIGH = emotionally
+    // stable (calm answers score +2; the radar labels it "ثبات"), so stability
+    // contributes positively below rather than being subtracted.
     const big5 = user.bigFive || { Openness: 50, Conscientiousness: 50, Extraversion: 50, Agreeableness: 50, Neuroticism: 50 };
 
     // Derived Indices (Approximated from raw skills if T-Scores not fully avail)
@@ -216,7 +219,7 @@ export const getCareerFit = (user: any): CareerProfile[] => {
         {
             title: "مدیریت عملیات (Operations)",
             description: "نظم‌دهی، کارایی و مدیریت منابع",
-            fitScore: Math.round((executive * 0.3) + (big5.Conscientiousness * 0.5) + (big5.Neuroticism * -0.2 + 20)), // Low Neuroticism helps
+            fitScore: Math.round((executive * 0.3) + (big5.Conscientiousness * 0.5) + (big5.Neuroticism * 0.2)),
             keyTraits: ["وجدان کاری بالا", "تمرکز اجرایی", "ثبات هیجانی"]
         },
         {

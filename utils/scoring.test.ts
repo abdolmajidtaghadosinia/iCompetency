@@ -6,6 +6,7 @@ import {
   calculateIndices,
   getPerformanceLabel,
   getTScoreColor,
+  getCareerFit,
   type RawScores,
 } from './scoring';
 
@@ -96,6 +97,19 @@ describe('calculateIndices', () => {
     expect(result.SI).toBe(50);
     // TCS = 50*0.20 + 50*0.20 + 60*0.25 + 50*0.15 + 50*0.20 = 52.5 -> rounds to 53
     expect(result.TCS).toBe(53);
+  });
+});
+
+describe('getCareerFit', () => {
+  it('rewards emotional stability in the Operations profile (Neuroticism key stores stability, high = calm)', () => {
+    const base = { Openness: 50, Conscientiousness: 50, Extraversion: 50, Agreeableness: 50 };
+    const calm = getCareerFit({ skills: {}, bigFive: { ...base, Neuroticism: 90 } });
+    const anxious = getCareerFit({ skills: {}, bigFive: { ...base, Neuroticism: 10 } });
+
+    const ops = (profiles: ReturnType<typeof getCareerFit>) =>
+      profiles.find((p) => p.title.includes('Operations'))!.fitScore;
+
+    expect(ops(calm)).toBeGreaterThan(ops(anxious));
   });
 });
 
