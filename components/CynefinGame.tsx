@@ -2,13 +2,28 @@
 import React, { useState, useEffect } from 'react';
 import { CynefinData } from '../types';
 import { generateCynefinData } from '../services/geminiService';
-import { Loader2, Activity, Brain, CheckCircle2, XCircle, ChevronLeft, ShieldAlert } from 'lucide-react';
+import { Loader2, Activity, Brain, CheckCircle2, XCircle, ChevronLeft, ShieldAlert, Compass } from 'lucide-react';
 import { toPersianNum } from '../utils';
 
 interface Props {
   onExit: () => void;
   onComplete: (score: number) => void;
 }
+
+// The AI generates a correctDomain per scenario; teach it after each answer
+// with the domain's canonical sense/analyze/probe/act response pattern.
+const DOMAIN_INFO: Record<string, { label: string; desc: string }> = {
+  simple: { label: 'ساده / بدیهی (Clear)', desc: 'رابطه علت و معلول برای همه روشن است: حس کن، دسته‌بندی کن، پاسخ بده — بهترین روش (Best Practice) را اجرا کن.' },
+  obvious: { label: 'ساده / بدیهی (Clear)', desc: 'رابطه علت و معلول برای همه روشن است: حس کن، دسته‌بندی کن، پاسخ بده — بهترین روش (Best Practice) را اجرا کن.' },
+  clear: { label: 'ساده / بدیهی (Clear)', desc: 'رابطه علت و معلول برای همه روشن است: حس کن، دسته‌بندی کن، پاسخ بده — بهترین روش (Best Practice) را اجرا کن.' },
+  complicated: { label: 'پیچیده (Complicated)', desc: 'رابطه علت و معلول با تحلیل کارشناسی کشف می‌شود: حس کن، تحلیل کن، پاسخ بده — روش خوب (Good Practice) با کمک خبره.' },
+  complex: { label: 'پیچیده پویا (Complex)', desc: 'علت و معلول فقط در نگاه به گذشته معلوم می‌شود: بیازما (Probe)، حس کن، پاسخ بده — آزمایش‌های امن برای شکست.' },
+  chaotic: { label: 'آشوبناک (Chaotic)', desc: 'رابطه علت و معلولی در کار نیست: اول عمل کن تا ثبات برقرار شود، بعد حس کن و پاسخ بده.' },
+  disorder: { label: 'بی‌نظمی (Disorder)', desc: 'هنوز معلوم نیست در کدام دامنه هستید — اول موقعیت را به یکی از چهار دامنه دیگر تجزیه کنید.' },
+};
+
+const domainInfoFor = (domain: string) =>
+  DOMAIN_INFO[domain.trim().toLowerCase()] ?? { label: domain, desc: 'الگوی واکنش مناسب این دامنه را مرور کنید.' };
 
 const CynefinGame: React.FC<Props> = ({ onExit, onComplete }) => {
   const [data, setData] = useState<CynefinData | null>(null);
@@ -125,6 +140,21 @@ const CynefinGame: React.FC<Props> = ({ onExit, onComplete }) => {
                     </div>
                 </div>
             </div>
+
+            {/* Domain Teaching Card - shown once answered */}
+            {selectedOptionIndex !== null && (
+                <div className="mb-6 bg-indigo-950/60 border border-indigo-500/30 rounded-2xl p-5 flex items-start gap-4 animate-fade-in-up">
+                    <div className="p-2 bg-indigo-500/20 rounded-lg shrink-0">
+                        <Compass className="text-indigo-400" size={20} />
+                    </div>
+                    <div>
+                        <div className="text-xs font-bold text-indigo-300 uppercase tracking-widest mb-1">
+                            دامنه صحیح: <span className="text-white">{domainInfoFor(scenario.correctDomain).label}</span>
+                        </div>
+                        <p className="text-sm text-slate-300 leading-relaxed">{domainInfoFor(scenario.correctDomain).desc}</p>
+                    </div>
+                </div>
+            )}
 
             {/* Options */}
             <div className="grid grid-cols-1 gap-4">
