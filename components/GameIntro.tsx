@@ -40,12 +40,12 @@ const GameIntro: React.FC<GameIntroProps> = ({
   };
 
   return (
-    <div className={`h-full w-full absolute inset-0 z-50 flex items-center justify-center p-4 bg-slate-50`}>
+    <div className={`h-full w-full absolute inset-0 z-50 flex items-center justify-center p-4 bg-slate-50 dark:bg-slate-950`}>
       {/* Animated Background */}
       <div className={`absolute inset-0 bg-gradient-to-br ${gradientFrom} ${gradientTo} opacity-10 animate-pulse`}></div>
-      
-      <div className="relative z-10 max-w-md w-full bg-white rounded-[2.5rem] shadow-2xl p-8 text-center border border-white/50 overflow-hidden">
-        
+
+      <div className="relative z-10 max-w-md w-full bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl p-8 text-center border border-white/50 dark:border-slate-700 overflow-hidden">
+
         {!isCounting ? (
           <div className="animate-fade-in-up">
             <div className={`w-24 h-24 mx-auto mb-6 rounded-3xl bg-gradient-to-tr ${gradientFrom} ${gradientTo} flex items-center justify-center shadow-lg transform rotate-3 hover:rotate-6 transition-transform duration-500`}>
@@ -54,10 +54,10 @@ const GameIntro: React.FC<GameIntroProps> = ({
               </div>
             </div>
 
-            <h1 className="text-3xl font-black text-slate-800 mb-3 tracking-tight">{title}</h1>
-            
-            <div className="bg-slate-50 rounded-2xl p-4 mb-8 border border-slate-100">
-                <p className="text-slate-600 font-medium leading-relaxed text-sm text-justify" dir="rtl">
+            <h1 className="text-3xl font-black text-slate-800 dark:text-white mb-3 tracking-tight">{title}</h1>
+
+            <div className="bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 mb-8 border border-slate-100 dark:border-slate-700">
+                <p className="text-slate-600 dark:text-slate-300 font-medium leading-relaxed text-sm text-justify" dir="rtl">
                 {description}
                 </p>
             </div>

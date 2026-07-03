@@ -59,18 +59,18 @@ const GameResultCard: React.FC<Props> = ({ title, rawScore, scoreKey, metrics, o
 
     return (
         <div className="h-full flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 animate-fade-in">
-            <div className="bg-white rounded-[2rem] shadow-2xl overflow-hidden max-w-md w-full animate-scale-in border border-slate-200">
+            <div className="bg-white dark:bg-slate-900 rounded-[2rem] shadow-2xl overflow-hidden max-w-md w-full animate-scale-in border border-slate-200 dark:border-slate-700">
                 {/* Header */}
-                <div className="bg-slate-50 p-6 text-center border-b border-slate-100">
-                    <h2 className="text-2xl font-black text-slate-800 mb-1">{title}</h2>
-                    <p className="text-slate-500 text-sm font-bold">تحلیل عملکرد شناختی</p>
+                <div className="bg-slate-50 dark:bg-slate-800 p-6 text-center border-b border-slate-100 dark:border-slate-700">
+                    <h2 className="text-2xl font-black text-slate-800 dark:text-white mb-1">{title}</h2>
+                    <p className="text-slate-500 dark:text-slate-400 text-sm font-bold">تحلیل عملکرد شناختی</p>
                 </div>
 
                 {/* Score Gauge */}
                 <div className="p-8 flex flex-col items-center">
                     <div className="relative w-40 h-40 flex items-center justify-center mb-6">
                         <svg className="w-full h-full transform -rotate-90" viewBox="0 0 140 140">
-                            <circle cx="70" cy="70" r={radius} stroke="#e2e8f0" strokeWidth="10" fill="transparent" />
+                            <circle cx="70" cy="70" r={radius} stroke="currentColor" strokeWidth="10" fill="transparent" className="text-slate-200 dark:text-slate-700" />
                             <circle 
                                 cx="70" cy="70" r={radius} 
                                 stroke="currentColor" 
@@ -83,7 +83,7 @@ const GameResultCard: React.FC<Props> = ({ title, rawScore, scoreKey, metrics, o
                             />
                         </svg>
                         <div className="absolute inset-0 flex flex-col items-center justify-center">
-                            <span className="text-5xl font-black text-slate-800 tracking-tighter">{toPersianNum(animatedScore)}</span>
+                            <span className="text-5xl font-black text-slate-800 dark:text-white tracking-tighter">{toPersianNum(animatedScore)}</span>
                             <span className="text-xs font-bold text-slate-400 uppercase">T-Score</span>
                         </div>
                     </div>
@@ -95,9 +95,9 @@ const GameResultCard: React.FC<Props> = ({ title, rawScore, scoreKey, metrics, o
                     {/* Metrics Grid */}
                     <div className="grid grid-cols-2 gap-4 w-full mb-8">
                         {metrics.map((m, idx) => (
-                            <div key={idx} className="bg-slate-50 p-3 rounded-2xl border border-slate-100 text-center">
-                                <div className="text-slate-800 font-black text-lg mb-0.5">{m.value}</div>
-                                <div className="text-xs text-slate-500 font-bold mb-1">{m.label}</div>
+                            <div key={idx} className="bg-slate-50 dark:bg-slate-800 p-3 rounded-2xl border border-slate-100 dark:border-slate-700 text-center">
+                                <div className="text-slate-800 dark:text-white font-black text-lg mb-0.5">{m.value}</div>
+                                <div className="text-xs text-slate-500 dark:text-slate-400 font-bold mb-1">{m.label}</div>
                                 {m.subtext && <div className="text-[9px] text-slate-400">{m.subtext}</div>}
                             </div>
                         ))}
@@ -107,13 +107,13 @@ const GameResultCard: React.FC<Props> = ({ title, rawScore, scoreKey, metrics, o
                     <div className="flex gap-3 w-full">
                         <button 
                             onClick={onRetry}
-                            className="flex-1 py-3 rounded-xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors flex items-center justify-center gap-2"
+                            className="flex-1 py-3 rounded-xl font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors flex items-center justify-center gap-2"
                         >
                             <RotateCcw size={18} /> تلاش مجدد
                         </button>
                         <button 
                             onClick={onComplete}
-                            className="flex-[2] py-3 rounded-xl font-bold text-white bg-indigo-600 hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200 flex items-center justify-center gap-2"
+                            className="flex-[2] py-3 rounded-xl font-bold text-white bg-indigo-600 hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200 dark:shadow-none flex items-center justify-center gap-2"
                         >
                             <CheckCircle2 size={18} /> ثبت نتیجه
                         </button>
