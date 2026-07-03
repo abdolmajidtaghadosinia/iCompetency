@@ -30,18 +30,24 @@ describe('calculateDPrime', () => {
 });
 
 describe('calculateStroopScore', () => {
-  it('computes the inhibition score from RT interference and accuracy', () => {
-    // interference = 200ms, accuracy 90% -> (1000/200) * 90 = 450
-    expect(calculateStroopScore(800, 600, 0.9)).toBe(450);
+  it('computes a 0-100 inhibition score from RT interference and accuracy', () => {
+    // interference = 200ms, accuracy 90% -> (1000/200) * 0.9 * 10 = 45
+    expect(calculateStroopScore(800, 600, 0.9)).toBe(45);
   });
 
-  it('floors interference at 50ms to avoid an inflated score', () => {
-    // raw interference is 10ms, floored to 50ms -> (1000/50) * 100 = 2000
-    expect(calculateStroopScore(610, 600, 1)).toBe(2000);
+  it('caps at 100 when interference is floored at 50ms', () => {
+    // raw interference is 10ms, floored to 50ms -> (1000/50) * 1 * 10 = 200 -> cap 100
+    expect(calculateStroopScore(610, 600, 1)).toBe(100);
   });
 
   it('floors interference at 50ms when incongruent RT is faster than congruent RT', () => {
-    expect(calculateStroopScore(500, 600, 0.8)).toBe(1600);
+    // floored to 50ms -> (1000/50) * 0.8 * 10 = 160 -> cap 100
+    expect(calculateStroopScore(500, 600, 0.8)).toBe(100);
+  });
+
+  it('scores a slow, error-prone run well below the norm mean', () => {
+    // interference = 500ms, accuracy 60% -> (1000/500) * 0.6 * 10 = 12
+    expect(calculateStroopScore(1100, 600, 0.6)).toBe(12);
   });
 
   it('returns 0 when accuracy is 0 regardless of reaction time', () => {

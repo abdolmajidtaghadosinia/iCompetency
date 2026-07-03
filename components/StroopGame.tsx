@@ -21,6 +21,7 @@ const ALL_COLORS = [
 ];
 
 const GAME_DURATION = 45;
+const PRACTICE_TRIALS = 3;
 
 const StroopGame: React.FC<Props> = ({ onExit, onComplete }) => {
   const [gameState, setGameState] = useState<'intro' | 'playing' | 'paused' | 'finished'>('intro');
@@ -28,6 +29,9 @@ const StroopGame: React.FC<Props> = ({ onExit, onComplete }) => {
   const [currentRound, setCurrentRound] = useState<{ text: string; colorHex: string; colorName: string }>({ text: '', colorHex: '', colorName: '' });
   const [flash, setFlash] = useState<'correct' | 'wrong' | null>(null);
   const [roundColors, setRoundColors] = useState<typeof ALL_COLORS>([]);
+  // Unscored warm-up trials on the first run; the clock only starts once
+  // these are done, so slow instruction-reading doesn't eat assessment time.
+  const [practiceLeft, setPracticeLeft] = useState(PRACTICE_TRIALS);
 
   // Stats for Analysis
   const [attempts, setAttempts] = useState(0);
@@ -47,13 +51,14 @@ const StroopGame: React.FC<Props> = ({ onExit, onComplete }) => {
   }, [gameState, roundColors]);
 
   useEffect(() => {
+    if (gameState === 'playing' && practiceLeft > 0) return; // clock frozen during practice
     if (gameState === 'playing' && timeLeft > 0) {
       const timer = setInterval(() => setTimeLeft(t => t - 0.1), 100);
       return () => clearInterval(timer);
     } else if (gameState === 'playing' && timeLeft <= 0) {
       setGameState('finished');
     }
-  }, [gameState, timeLeft]);
+  }, [gameState, timeLeft, practiceLeft]);
 
   // Keyboard Listener
   useEffect(() => {
@@ -71,8 +76,9 @@ const StroopGame: React.FC<Props> = ({ onExit, onComplete }) => {
   }, [gameState, roundColors, currentRound]);
 
   const generateRound = () => {
-    // 30% Congruent (Match), 70% Incongruent (Mismatch)
-    const isCongruent = Math.random() < 0.3;
+    // 50/50 congruent/incongruent: enough congruent trials in a 45s run to
+    // estimate the congruent-RT baseline reliably (30% left it at ~3-5 samples).
+    const isCongruent = Math.random() < 0.5;
 
     // Pick 4 active colors for this round to fit keyboard 1-4 nicely (or 1-6)
     // Let's use 4 options to reduce cognitive load on scanning and focus on inhibition
@@ -105,6 +111,7 @@ const StroopGame: React.FC<Props> = ({ onExit, onComplete }) => {
     setScore(0);
     setAttempts(0);
     setCorrectCount(0);
+    setPracticeLeft(0); // restarts/retries skip the warm-up
     congruencyData.current = { congruentRTs: [], incongruentRTs: [] };
   };
 
@@ -116,10 +123,19 @@ const StroopGame: React.FC<Props> = ({ onExit, onComplete }) => {
 
   const handleAnswer = (selectedColorName: string) => {
     const reactionTime = performance.now() - roundStartTime.current;
-
-    setAttempts(prev => prev + 1);
     const isCorrect = selectedColorName === currentRound.colorName;
     const isCongruent = currentRound.text === currentRound.colorName;
+
+    // Practice trials: feedback only, nothing recorded.
+    if (practiceLeft > 0) {
+        setFlash(isCorrect ? 'correct' : 'wrong');
+        setPracticeLeft(p => p - 1);
+        setTimeout(() => setFlash(null), 200);
+        generateRound();
+        return;
+    }
+
+    setAttempts(prev => prev + 1);
 
     if (isCorrect) {
         setCorrectCount(prev => prev + 1);
@@ -143,18 +159,24 @@ const StroopGame: React.FC<Props> = ({ onExit, onComplete }) => {
 
   if (gameState === 'finished') {
       const accuracy = attempts > 0 ? (correctCount / attempts) : 0;
+      const { congruentRTs, incongruentRTs } = congruencyData.current;
 
-      const avgCongruentRT = congruencyData.current.congruentRTs.length > 0
-          ? congruencyData.current.congruentRTs.reduce((a,b) => a+b, 0) / congruencyData.current.congruentRTs.length
+      const avgCongruentRT = congruentRTs.length > 0
+          ? congruentRTs.reduce((a,b) => a+b, 0) / congruentRTs.length
           : 0;
 
-      const avgIncongruentRT = congruencyData.current.incongruentRTs.length > 0
-          ? congruencyData.current.incongruentRTs.reduce((a,b) => a+b, 0) / congruencyData.current.incongruentRTs.length
+      const avgIncongruentRT = incongruentRTs.length > 0
+          ? incongruentRTs.reduce((a,b) => a+b, 0) / incongruentRTs.length
           : 0;
 
-      // Inhibition Score Calculation
-      const inhibitionScore = calculateStroopScore(avgIncongruentRT, avgCongruentRT, accuracy);
-      const stroopEffect = Math.round(Math.max(0, avgIncongruentRT - avgCongruentRT));
+      // The interference contrast needs at least one RT sample on each side;
+      // without both, fall back to an accuracy-only score around the norm mean
+      // instead of feeding a zero baseline into the formula.
+      const hasBothSamples = congruentRTs.length > 0 && incongruentRTs.length > 0;
+      const inhibitionScore = hasBothSamples
+          ? calculateStroopScore(avgIncongruentRT, avgCongruentRT, accuracy)
+          : Math.min(100, Math.round(40 * accuracy));
+      const stroopEffect = hasBothSamples ? Math.round(Math.max(0, avgIncongruentRT - avgCongruentRT)) : 0;
 
       return (
           <GameResultCard
@@ -190,6 +212,13 @@ const StroopGame: React.FC<Props> = ({ onExit, onComplete }) => {
         colorTheme="rose"
     >
       <div className={`h-full w-full flex flex-col items-center justify-center rounded-3xl transition-colors duration-150 ${flash === 'correct' ? 'bg-emerald-100' : flash === 'wrong' ? 'bg-red-100' : ''}`}>
+        {practiceLeft > 0 && (
+          <div className="absolute top-24 inset-x-0 flex justify-center z-20 pointer-events-none">
+            <div className="bg-amber-100 border border-amber-300 text-amber-700 px-5 py-2 rounded-full text-sm font-black shadow-md animate-pulse">
+              دور تمرینی ({toPersianNum(practiceLeft)} مانده) — امتیاز و زمان ثبت نمی‌شود
+            </div>
+          </div>
+        )}
         <div className="flex-1 flex flex-col items-center justify-center w-full">
           <div className="relative mb-12 transform hover:scale-105 transition-transform duration-300">
               <h1

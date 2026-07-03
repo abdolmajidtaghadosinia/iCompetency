@@ -116,14 +116,17 @@ export const calculateDPrime = (hits: number, targets: number, falseAlarms: numb
 };
 
 /**
- * Calculates Stroop Inhibition Score
- * Score = (1000 / (RT_Incongruent - RT_Congruent)) * Accuracy
- * Higher is better.
+ * Calculates Stroop Inhibition Score on a 0-100 scale.
+ * Score = (1000 / interference_ms) * accuracy * 10, capped at 100.
+ * Higher is better. The scale matches the A14 norm (mean 50, sd 15):
+ * ~200ms interference at 90% accuracy lands near the mean, while the
+ * previous unscaled formula produced 300-600 for typical runs and pinned
+ * every player's T-score at the 80 clamp.
  */
 export const calculateStroopScore = (rtIncongruent: number, rtCongruent: number, accuracy: number): number => {
     // Prevent division by zero or negative interference (which means user is superhuman or data is noisy)
     const interference = Math.max(50, rtIncongruent - rtCongruent); // Minimum 50ms interference assumed
-    return Math.round((1000 / interference) * (accuracy * 100)); // Scale up
+    return Math.min(100, Math.round((1000 / interference) * accuracy * 10));
 };
 
 // --- General Scoring ---
