@@ -185,15 +185,21 @@ function ai_spec_fact_finding(): array
     $source = schema_object(['id'=>str_schema(),'name'=>str_schema(),'role'=>str_schema(),'type'=>str_schema(),'reliability'=>int_schema(),'description'=>str_schema(),'actions'=>schema_array($action)], ['id','name','role','type','reliability','description','actions']);
     $category = schema_object(['id'=>str_schema(),'title'=>str_schema(),'sources'=>schema_array($source)], ['id','title','sources']);
     $option = schema_object(['id'=>str_schema(),'text'=>str_schema(),'isCorrect'=>bool_schema(),'feedback'=>str_schema()], ['id','text','isCorrect','feedback']);
-    $prompt = 'Design a Persian (Farsi) detective fact-finding case. Return JSON only, all human-readable text in Persian.'
-        ."\nRequirements:"
-        ."\n- context: 2-3 sentences framing the mystery."
-        ."\n- budget: an integer 250-400 (investigation credits)."
-        ."\n- categories: EXACTLY 3 categories, each with a Persian title. EVERY category MUST contain 2-3 sources (never empty)."
-        ."\n- each source: name, role, type (one of exactly HUMINT, SIGINT, OSINT), reliability (integer 0-100), description, and 1-2 actions."
-        ."\n- each action: label, cost (integer 20-80, and the sum of all action costs must exceed the budget so the player must prioritise), riskLevel (one of exactly Low, Medium, High), content (the Persian evidence revealed), isCrucial (boolean)."
-        ."\n- Mark 2-4 actions across the whole case as isCrucial:true (the clues that point to the truth). Include at least 2 non-crucial red-herring actions from low-reliability sources with misleading content."
-        ."\n- options: 3-4 final verdict options, EXACTLY ONE with isCorrect:true; each has a Persian feedback explaining why it is right or wrong based on the crucial clues.";
+    $prompt = 'Design a rich, immersive Persian (Farsi) detective fact-finding case. Return JSON only. ALL human-readable text must be in fluent, natural Persian.'
+        ."\nStructure:"
+        ."\n- context: 3-4 vivid Persian sentences that set the scene and the stakes."
+        ."\n- budget: an integer 200-320 (investigation credits)."
+        ."\n- categories: EXACTLY 3 categories, each a Persian title. EVERY category MUST contain 2-3 sources (never empty)."
+        ."\n- each source: name, role, type (exactly one of HUMINT, SIGINT, OSINT), reliability (integer 0-100), description (1-2 Persian sentences giving the source real character and why it matters), and 1-3 actions."
+        ."\n- aim for 7-10 actions total across the whole case."
+        ."\n- each action: label, cost (integer 20-70; the SUM of all action costs must clearly exceed the budget so the player must prioritise), riskLevel (exactly one of Low, Medium, High), content, isCrucial (boolean)."
+        ."\nContent depth (IMPORTANT): each action.content must be a RICH, detailed passage of 3-6 sentences, never a single line. Match the source type:"
+        ."\n  * HUMINT -> a natural first-person spoken transcript with hesitations, specific names, times and observations."
+        ."\n  * SIGINT -> a realistic multi-line record or log with labelled fields (accounts, timestamps, amounts), using \\n line breaks."
+        ."\n  * OSINT -> a formatted excerpt from a document/report with concrete details."
+        ."\n  Embed concrete specifics (names, dates, amounts, contradictions). Crucial clues must contain the decisive detail; red herrings must sound plausible but mislead."
+        ."\n- Mark 3-4 actions across the case as isCrucial:true (the clues that together reveal the truth). Include at least 2 non-crucial RED-HERRING actions from low-reliability sources whose content is convincing but misleading."
+        ."\n- options: 3-4 final verdict options, EXACTLY ONE with isCorrect:true; each option has a Persian feedback (2-3 sentences) explaining why it is right or wrong by referring to the crucial clues.";
     return ['prompt'=>$prompt, 'schema'=>schema_object(['id'=>str_schema(),'title'=>str_schema(),'context'=>str_schema(),'budget'=>int_schema(),'categories'=>schema_array($category),'options'=>schema_array($option)], ['id','title','context','budget','categories','options']), 'fallback'=>fact_finding_fallback()];
 }
 
@@ -239,34 +245,37 @@ function fact_finding_fallback(): array
 {
     return [
         'id'=>'static_scenario_01',
-        'title'=>'پرونده نشت اطلاعات پروژه زئوس',
-        'context'=>'مستندات کلیدی پروژه زئوس پیش از رونمایی منتشر شده است. منشأ نشت را با بودجه محدود کشف کنید.',
-        'budget'=>150,
+        'title'=>'راز گنجینه گمشده',
+        'context'=>'مجموعه‌ای ارزشمند از سکه‌های باستانی خانواده طباطبایی از گاوصندوق خانه ربوده شده است. گاوصندوق سالم و بدون آثار تخریب باز شده و هیچ نشانی از ورود اجباری نیست. آقای طباطبایی از شما خواسته پیش از آنکه گنجینه به فروش برسد و برای همیشه ناپدید شود، عامل سرقت را با بودجه محدود کشف کنید.',
+        'budget'=>180,
         'categories'=>[
-            ['id'=>'cat_humint','title'=>'منابع انسانی','sources'=>[
-                ['id'=>'src_dev','name'=>'سامیار','role'=>'برنامه‌نویس ارشد','type'=>'HUMINT','reliability'=>60,'description'=>'توسعه‌دهنده‌ای که اخیراً با مدیریت اختلاف داشته است.',
-                    'actions'=>[['id'=>'act_dev_interview','label'=>'مصاحبه با سامیار','cost'=>30,'riskLevel'=>'High','content'=>'سامیار می‌گوید دیشب در سفر بوده و لپ‌تاپش روشن نبوده است.','isCrucial'=>false]]],
-                ['id'=>'src_hr','name'=>'مدیر منابع انسانی','role'=>'شاهد','type'=>'HUMINT','reliability'=>75,'description'=>'از روابط کاری تیم مطلع است.',
-                    'actions'=>[['id'=>'act_hr_talk','label'=>'گفتگو درباره سامیار','cost'=>25,'riskLevel'=>'Low','content'=>'سامیار کارمند وظیفه‌شناسی بوده اما گذرواژه‌هایش را روی کاغذ می‌نوشته است.','isCrucial'=>false]]],
+            ['id'=>'cat_initial','title'=>'تحقیقات اولیه','sources'=>[
+                ['id'=>'src_servant','name'=>'خدمتکار خانه','role'=>'شاهد نزدیک','type'=>'HUMINT','reliability'=>55,'description'=>'خدمتکار قدیمی و وفادار خانواده که شب حادثه در خانه حضور داشته و همه رفت‌وآمدها از نظرش می‌گذرد.',
+                    'actions'=>[['id'=>'act_servant','label'=>'مصاحبه با خدمتکار','cost'=>30,'riskLevel'=>'Medium','content'=>'خدمتکار با دستانی لرزان می‌گوید: «شب حادثه طبق عادت هر شب، ساعت ده چراغ‌ها را خاموش کردم و به اتاقم رفتم. نزدیک نیمه‌شب صدای قدم‌هایی از راهروی طبقه بالا شنیدم، اما گمان کردم آقازاده است که باز هم دیروقت به خانه برگشته؛ برای همین بیرون نیامدم. صبح که گاوصندوق را باز دیدم بهت‌زده شدم، چون قفلش سالم بود و انگار کسی آن را با رمز باز کرده بود. من فقط کلید انبار را دارم؛ رمز گاوصندوق را هیچ‌وقت نمی‌دانستم — تنها خود آقا و پسرشان از آن باخبرند.»','isCrucial'=>true]]],
+                ['id'=>'src_scene','name'=>'صحنه جرم','role'=>'گزارش بازرسی','type'=>'OSINT','reliability'=>90,'description'=>'گزارش فنی بازرسی محل سرقت و گاوصندوق.',
+                    'actions'=>[['id'=>'act_scene','label'=>'بررسی صحنه جرم','cost'=>25,'riskLevel'=>'Low','content'=>"گزارش بازرسی صحنه:\n۱) گاوصندوق با رمز صحیح باز شده است؛ هیچ اثری از برش، تخریب یا ابزار مکانیکی دیده نمی‌شود.\n۲) تمام درها و پنجره‌ها سالم و از داخل قفل بوده‌اند (بدون هیچ نشانه‌ای از ورود اجباری).\n۳) روی دستگیره و صفحه‌کلید گاوصندوق، اثر انگشت تازه‌ای متعلق به «پسر خانواده» ثبت شده است.\nجمع‌بندی: سارق به رمز دسترسی داشته و از داخل خانه اقدام کرده است.",'isCrucial'=>true]]],
             ]],
-            ['id'=>'cat_sigint','title'=>'شواهد دیجیتال','sources'=>[
-                ['id'=>'src_logs','name'=>'سرور لاگ‌ها','role'=>'مانیتورینگ','type'=>'SIGINT','reliability'=>100,'description'=>'رکوردهای دسترسی VPN و فایل‌ها.',
+            ['id'=>'cat_field','title'=>'تحقیقات میدانی','sources'=>[
+                ['id'=>'src_market','name'=>'بازار عتیقه','role'=>'شبکه فروش','type'=>'HUMINT','reliability'=>40,'description'=>'دلالان بازار عتیقه اصفهان که خریدوفروش سکه‌های نایاب از دستشان می‌گذرد.',
                     'actions'=>[
-                        ['id'=>'act_logs_vpn','label'=>'بررسی VPN','cost'=>40,'riskLevel'=>'Low','content'=>"ACCESS_LOG\nFAILED x4 user=samiyar\nSUCCESS user=samiyar ip=203.0.113.9 (نامتعارف)",'isCrucial'=>true],
-                        ['id'=>'act_logs_data','label'=>'بررسی دانلود فایل','cost'=>50,'riskLevel'=>'Low','content'=>"FILE_ACCESS\nZEUS_SECRET.zip downloaded via VPN user=samiyar",'isCrucial'=>true],
+                        ['id'=>'act_market_ask','label'=>'پرس‌وجوی سرسری','cost'=>35,'riskLevel'=>'Medium','content'=>'یکی از دلال‌ها با احتیاط می‌گوید: «چند روزی است شایعه شده یک خریدار خارجی دنبال سکه‌های ساسانی می‌گردد و قیمت کلانی می‌دهد. اما نه اسمی از او دارم نه نشانی؛ شاید فقط یک شایعه بازار باشد که سر زبان‌ها افتاده.»','isCrucial'=>false],
+                        ['id'=>'act_market_bribe','label'=>'رشوه به دلال معتمد','cost'=>55,'riskLevel'=>'High','content'=>'دلال پس از گرفتن رشوه، صدایش را پایین می‌آورد و اعتراف می‌کند: «راستش سفارش فروش این سکه‌ها را کسی داد که خودش از همان خانه است — جوانی مضطرب و عجول که اصرار داشت زود و نقد بفروشد و معامله کاملاً مخفی بماند. مدام می‌گفت پول را همین حالا لازم دارم.»','isCrucial'=>true],
                     ]],
+                ['id'=>'src_neighbor','name'=>'همسایه','role'=>'شاهد جانبی','type'=>'HUMINT','reliability'=>30,'description'=>'همسایه‌ای که پنجره‌اش رو به کوچه است و اغلب دیروقت بیدار می‌ماند.',
+                    'actions'=>[['id'=>'act_neighbor','label'=>'گفتگو با همسایه','cost'=>20,'riskLevel'=>'Low','content'=>'همسایه می‌گوید: «آن شب یک خودروی ناآشنای تیره‌رنگ را دیدم که مدتی سر کوچه پارک کرده بود. پلاکش را ندیدم و راننده هم پیاده نشد. نمی‌دانم به سرقت ربط دارد یا فقط مهمان خانه روبه‌رویی بوده؛ آخر آن‌ها زیاد مهمان دارند.»','isCrucial'=>false]]],
             ]],
-            ['id'=>'cat_osint','title'=>'منابع علنی','sources'=>[
-                ['id'=>'src_social','name'=>'شبکه اجتماعی','role'=>'منبع باز','type'=>'OSINT','reliability'=>35,'description'=>'فعالیت عمومی افراد مرتبط.',
-                    'actions'=>[['id'=>'act_social','label'=>'بررسی پروفایل رقیب','cost'=>30,'riskLevel'=>'Medium','content'=>'شرکت رقیب اخیراً محصولی مشابه معرفی کرده اما تاریخ آن پیش از نشت است.','isCrucial'=>false]]],
-                ['id'=>'src_email','name'=>'ایمیل سازمانی','role'=>'مکاتبات','type'=>'SIGINT','reliability'=>90,'description'=>'صندوق ایمیل خروجی.',
-                    'actions'=>[['id'=>'act_email','label'=>'بررسی ایمیل‌های خروجی','cost'=>45,'riskLevel'=>'Medium','content'=>'ایمیلی از IP نامتعارف با پیوست فایل زئوس به یک آدرس ناشناس ارسال شده است.','isCrucial'=>true]]],
+            ['id'=>'cat_finance','title'=>'تحقیقات مالی و اداری','sources'=>[
+                ['id'=>'src_bank','name'=>'سوابق بانکی','role'=>'اسناد مالی','type'=>'SIGINT','reliability'=>100,'description'=>'صورت‌حساب و تراکنش‌های اخیر اعضای خانواده که با حکم قضایی در دسترس قرار گرفته است.',
+                    'actions'=>[['id'=>'act_bank','label'=>'استعلام تراکنش‌ها','cost'=>50,'riskLevel'=>'Low','content'=>"صورت‌حساب بانکی — پسر خانواده:\nتراکنش خروجی: -۱۲۰٬۰۰۰٬۰۰۰ ریال\nشرح: «تسویه بدهی — باشگاه شرط‌بندی»\nزمان: دو روز پس از سرقت\nهشدار سیستم: پیش از این انتقال، چند تراکنش ناموفق به دلیل کمبود موجودی ثبت شده است.",'isCrucial'=>true]]],
+                ['id'=>'src_pawn','name'=>'دفتر گروگذاری','role'=>'سند رسمی','type'=>'OSINT','reliability'=>85,'description'=>'دفتر ثبت رهن و گروگذاری اشیای قیمتی در محل.',
+                    'actions'=>[['id'=>'act_pawn','label'=>'بررسی رسید گروگذاری','cost'=>30,'riskLevel'=>'Medium','content'=>'در دفتر گروگذاری رسیدی به نام پسر خانواده ثبت شده است: او یکی از سکه‌های باستانی را در ازای وامی کوچک به گرو گذاشته. متصدی به یاد می‌آورد که جوان بسیار عجول و نگران بود و مدام به ساعتش نگاه می‌کرد.','isCrucial'=>false]]],
             ]],
         ],
         'options'=>[
-            ['id'=>'opt_samiyar','text'=>'سامیار مقصر اصلی است.','isCorrect'=>false,'feedback'=>'شواهد نشان می‌دهد حساب او (با گذرواژه لو رفته) هک شده، نه اینکه خودش عامل باشد.'],
-            ['id'=>'opt_rival','text'=>'شرکت رقیب اطلاعات را دزدیده است.','isCorrect'=>false,'feedback'=>'تاریخ محصول رقیب پیش از نشت است؛ این یک ردِ گم‌کن است.'],
-            ['id'=>'opt_hacker','text'=>'مهاجم خارجی حساب سامیار را هک کرده و فایل را از VPN دانلود و ایمیل کرده است.','isCorrect'=>true,'feedback'=>'درست است؛ تلاش‌های ناموفق ورود، IP نامتعارف، دانلود فایل و ایمیل خروجی همگی این نتیجه را تأیید می‌کنند.'],
+            ['id'=>'opt_pro','text'=>'گنجینه توسط سارقی حرفه‌ای و ناشناس از بیرون به سرقت رفته است.','isCorrect'=>false,'feedback'=>'شواهد صحنه خلاف این را نشان می‌دهد: هیچ ورود اجباری‌ای در کار نبوده و گاوصندوق با رمز صحیح باز شده است. یک سارق ناشناس از بیرون به رمز دسترسی نداشت.'],
+            ['id'=>'opt_servant','text'=>'خدمتکار خانه گنجینه را دزدیده است.','isCorrect'=>false,'feedback'=>'خدمتکار تنها کلید انبار را داشت و به گفته خودش و بر اساس صحنه، رمز گاوصندوق را نمی‌دانست. او یک شاهد است، نه عامل سرقت.'],
+            ['id'=>'opt_foreign','text'=>'یک خریدار خارجی عامل سرقت بوده است.','isCorrect'=>false,'feedback'=>'شایعه خریدار خارجی در بازار یک ردِ گم‌کن بود و هیچ شاهد مستقلی آن را تأیید نکرد. خودروی مشکوک همسایه هم پلاک و راننده‌ای نداشت.'],
+            ['id'=>'opt_son','text'=>'پسر خانواده برای پرداخت بدهی قمار، گنجینه را برده است.','isCorrect'=>true,'feedback'=>'درست است؛ اثر انگشت روی گاوصندوق و آگاهی از رمز، سفارش فروش از سوی فردی از همان خانه، انتقال بانکی برای تسویه بدهی قمار و رسید گروگذاری، همگی به پسر خانواده اشاره دارند.'],
         ],
     ];
 }

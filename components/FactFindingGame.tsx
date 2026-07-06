@@ -171,8 +171,10 @@ const FactFindingGame: React.FC<Props> = ({ onExit, onComplete }) => {
 
   const renderEvidence = (type: FactSourceType, content: string) => {
     if (type === 'SIGINT') return (
-      <div className="mt-3 bg-slate-900 rounded-xl p-4 border border-slate-700 shadow-inner font-mono text-xs md:text-sm text-emerald-400 overflow-x-auto whitespace-pre animate-fade-in" dir="ltr">
-        <div className="flex items-center gap-2 border-b border-slate-700 pb-2 mb-2 text-slate-500"><Terminal size={14} /> SYSTEM_LOG_OUTPUT</div>
+      // dir="auto" lets each line choose its own direction: Persian records
+      // render RTL while Latin log lines (ACCESS_LOG, ips…) render LTR.
+      <div className="mt-3 bg-slate-900 rounded-xl p-4 border border-slate-700 shadow-inner font-mono text-xs md:text-sm text-emerald-400 overflow-x-auto whitespace-pre-wrap leading-relaxed animate-fade-in" dir="auto">
+        <div className="flex items-center gap-2 border-b border-slate-700 pb-2 mb-2 text-slate-500" dir="ltr"><Terminal size={14} /> SYSTEM_LOG_OUTPUT</div>
         {content}
       </div>
     );
