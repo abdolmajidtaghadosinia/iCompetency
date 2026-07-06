@@ -130,9 +130,9 @@ const FactFindingGame: React.FC<Props> = ({ onExit, onComplete }) => {
   }
 
   const getRiskColor = (risk: string) => {
-      if (risk === 'Low') return 'text-emerald-500 bg-emerald-50 border-emerald-100';
-      if (risk === 'Medium') return 'text-amber-500 bg-amber-50 border-amber-100';
-      return 'text-red-500 bg-red-50 border-red-100';
+      if (risk === 'Low') return 'text-emerald-500 bg-emerald-50 dark:bg-emerald-500/10 border-emerald-100 dark:border-emerald-500/30';
+      if (risk === 'Medium') return 'text-amber-500 bg-amber-50 dark:bg-amber-500/10 border-amber-100 dark:border-amber-500/30';
+      return 'text-red-500 bg-red-50 dark:bg-red-500/10 border-red-100 dark:border-red-500/30';
   }
 
   const renderEvidenceContent = (sourceType: FactSourceType, content: string) => {
@@ -161,7 +161,7 @@ const FactFindingGame: React.FC<Props> = ({ onExit, onComplete }) => {
 
       // HUMINT
       return (
-          <div className="mt-4 bg-blue-50/50 rounded-xl p-4 border-l-4 border-blue-500 text-slate-700 italic text-sm leading-relaxed shadow-sm animate-fade-in whitespace-pre-wrap">
+          <div className="mt-4 bg-blue-50/50 dark:bg-blue-500/10 rounded-xl p-4 border-l-4 border-blue-500 text-slate-700 dark:text-slate-300 italic text-sm leading-relaxed shadow-sm animate-fade-in whitespace-pre-wrap">
               <div className="flex items-center gap-2 text-blue-600 font-bold text-xs mb-2 not-italic">
                   <MessageSquare size={14} /> TRANSCRIPT / NOTES
               </div>
@@ -186,11 +186,11 @@ const FactFindingGame: React.FC<Props> = ({ onExit, onComplete }) => {
 
   if (loading) {
       return (
-          <div className="h-full flex flex-col items-center justify-center bg-slate-100 animate-fade-in">
-              <div className="bg-white p-8 rounded-3xl shadow-xl flex flex-col items-center">
-                  <Loader2 className="w-12 h-12 text-slate-800 animate-spin mb-4" />
-                  <h3 className="text-xl font-bold text-slate-800 mb-2">در حال بارگذاری پرونده...</h3>
-                  <p className="text-slate-500 text-sm">در حال آماده‌سازی مستندات و شواهد پرونده...</p>
+          <div className="h-full flex flex-col items-center justify-center bg-slate-100 dark:bg-slate-950 animate-fade-in">
+              <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl shadow-xl flex flex-col items-center">
+                  <Loader2 className="w-12 h-12 text-slate-800 dark:text-slate-200 animate-spin mb-4" />
+                  <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">در حال بارگذاری پرونده...</h3>
+                  <p className="text-slate-500 dark:text-slate-400 text-sm">در حال آماده‌سازی مستندات و شواهد پرونده...</p>
               </div>
           </div>
       );
@@ -198,11 +198,11 @@ const FactFindingGame: React.FC<Props> = ({ onExit, onComplete }) => {
 
   if (!scenario) {
     return (
-      <div className="h-full flex flex-col items-center justify-center bg-slate-100 p-8 text-center animate-fade-in">
-        <div className="bg-white p-8 rounded-3xl shadow-xl flex flex-col items-center">
+      <div className="h-full flex flex-col items-center justify-center bg-slate-100 dark:bg-slate-950 p-8 text-center animate-fade-in">
+        <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl shadow-xl flex flex-col items-center">
           <AlertTriangle className="w-12 h-12 text-amber-500 mb-4" />
-          <h2 className="text-xl font-bold text-slate-800 mb-2">خطا در بارگذاری</h2>
-          <p className="text-slate-500 mb-6 text-sm">ارتباط با سرور هوش مصنوعی برقرار نشد. لطفاً اتصال اینترنت خود را بررسی کنید.</p>
+          <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-2">خطا در بارگذاری</h2>
+          <p className="text-slate-500 dark:text-slate-400 mb-6 text-sm">ارتباط با سرور هوش مصنوعی برقرار نشد. لطفاً اتصال اینترنت خود را بررسی کنید.</p>
           <div className="flex gap-3">
               <button 
                   onClick={loadNewScenario}
@@ -210,7 +210,7 @@ const FactFindingGame: React.FC<Props> = ({ onExit, onComplete }) => {
               >
                   تلاش مجدد
               </button>
-              <button onClick={onExit} className="px-6 py-3 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl font-bold transition-colors">
+              <button onClick={onExit} className="px-6 py-3 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-xl font-bold transition-colors">
                   بازگشت
               </button>
           </div>
@@ -220,7 +220,7 @@ const FactFindingGame: React.FC<Props> = ({ onExit, onComplete }) => {
   }
 
   return (
-    <div className="h-full bg-slate-100 flex flex-col p-4 md:p-6 overflow-y-auto animate-fade-in font-sans pb-20 md:pb-6">
+    <div className="h-full bg-slate-100 dark:bg-slate-950 flex flex-col p-4 md:p-6 overflow-y-auto animate-fade-in font-sans pb-20 md:pb-6">
       {/* Top Bar */}
       <div className="flex justify-between items-center mb-4 bg-slate-900 text-white p-4 rounded-2xl shadow-lg">
         <div className="flex items-center gap-4">
@@ -240,23 +240,23 @@ const FactFindingGame: React.FC<Props> = ({ onExit, onComplete }) => {
 
       {gameState === 'result' && result ? (
           <div className="flex-1 flex items-center justify-center animate-scale-in p-4 overflow-y-auto">
-              <div className={`max-w-lg w-full p-8 rounded-3xl text-center shadow-2xl border-2 bg-white ${result.isWin ? 'border-emerald-500' : 'border-red-500'}`}>
-                    <div className={`w-24 h-24 mx-auto mb-6 rounded-full flex items-center justify-center ${result.isWin ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
+              <div className={`max-w-lg w-full p-8 rounded-3xl text-center shadow-2xl border-2 bg-white dark:bg-slate-800 ${result.isWin ? 'border-emerald-500' : 'border-red-500'}`}>
+                    <div className={`w-24 h-24 mx-auto mb-6 rounded-full flex items-center justify-center ${result.isWin ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400' : 'bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400'}`}>
                         {result.isWin ? <CheckCircle2 size={48} /> : <XCircle size={48} />}
                     </div>
-                    <h3 className="text-2xl font-black mb-4 text-slate-900">
+                    <h3 className="text-2xl font-black mb-4 text-slate-900 dark:text-white">
                         {result.isWin ? 'پرونده مختومه شد' : 'شکست تحقیقات'}
                     </h3>
-                    <p className="text-slate-600 font-medium mb-8 leading-relaxed text-lg border-y py-4 border-slate-100">
+                    <p className="text-slate-600 dark:text-slate-300 font-medium mb-8 leading-relaxed text-lg border-y py-4 border-slate-100 dark:border-slate-700">
                         {result.feedback}
                     </p>
                     {result.isWin && (
                         <div className="mb-8 flex flex-col items-center gap-2">
                             <div className="flex justify-center gap-3">
-                                <div className="bg-emerald-50 px-4 py-2 rounded-xl text-emerald-700 font-bold border border-emerald-100">
+                                <div className="bg-emerald-50 dark:bg-emerald-500/15 px-4 py-2 rounded-xl text-emerald-700 dark:text-emerald-300 font-bold border border-emerald-100 dark:border-emerald-500/30">
                                     امتیاز این دور: {toPersianNum(result.score)}
                                 </div>
-                                <div className="bg-slate-50 px-4 py-2 rounded-xl text-slate-600 font-bold border border-slate-100">
+                                <div className="bg-slate-50 dark:bg-slate-700 px-4 py-2 rounded-xl text-slate-600 dark:text-slate-300 font-bold border border-slate-100 dark:border-slate-600">
                                     بهترین امتیاز: {toPersianNum(bestScore)}
                                 </div>
                             </div>
@@ -277,7 +277,7 @@ const FactFindingGame: React.FC<Props> = ({ onExit, onComplete }) => {
                         </button>
                         <button
                             onClick={() => onComplete(bestScore)}
-                            className="w-full py-4 rounded-xl font-bold text-slate-600 bg-slate-200 hover:bg-slate-300 transition-colors"
+                            className="w-full py-4 rounded-xl font-bold text-slate-600 dark:text-slate-300 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors"
                         >
                             پایان و خروج
                         </button>
@@ -288,8 +288,8 @@ const FactFindingGame: React.FC<Props> = ({ onExit, onComplete }) => {
           <div className="flex-1 flex flex-col lg:flex-row gap-4 overflow-visible lg:overflow-hidden pb-4 min-h-0">
               
               {/* LEFT PANE: DIRECTORY */}
-              <div className="lg:w-1/4 bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col lg:overflow-hidden shrink-0 min-h-[300px] lg:min-h-0">
-                  <div className="p-4 bg-slate-50 border-b border-slate-200 font-bold text-slate-700 text-sm flex items-center gap-2">
+              <div className="lg:w-1/4 bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col lg:overflow-hidden shrink-0 min-h-[300px] lg:min-h-0">
+                  <div className="p-4 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 font-bold text-slate-700 dark:text-slate-200 text-sm flex items-center gap-2">
                       <FolderOpen size={16} /> دایرکتوری منابع
                   </div>
                   <div className="flex-1 overflow-y-auto p-2 space-y-2">
@@ -300,9 +300,9 @@ const FactFindingGame: React.FC<Props> = ({ onExit, onComplete }) => {
                                     setSelectedCategory(cat.id === selectedCategory ? null : cat.id);
                                     setSelectedSource(null);
                                 }}
-                                className={`w-full flex items-center gap-3 p-3 rounded-xl text-sm font-bold transition-all ${selectedCategory === cat.id ? 'bg-blue-50 text-blue-700' : 'hover:bg-slate-50 text-slate-600'}`}
+                                className={`w-full flex items-center gap-3 p-3 rounded-xl text-sm font-bold transition-all ${selectedCategory === cat.id ? 'bg-blue-50 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300' : 'hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300'}`}
                               >
-                                  <div className={`p-1.5 rounded-lg ${selectedCategory === cat.id ? 'bg-blue-100' : 'bg-slate-200'}`}>
+                                  <div className={`p-1.5 rounded-lg ${selectedCategory === cat.id ? 'bg-blue-100 dark:bg-blue-500/25' : 'bg-slate-200 dark:bg-slate-700'}`}>
                                      {/* Default icon as categories are dynamic now */}
                                      <FolderOpen size={16} />
                                   </div>
@@ -315,7 +315,7 @@ const FactFindingGame: React.FC<Props> = ({ onExit, onComplete }) => {
                                           <button
                                             key={src.id}
                                             onClick={() => setSelectedSource(src.id)}
-                                            className={`w-full text-right p-2.5 rounded-lg text-xs font-medium border-r-2 transition-all flex justify-between items-center ${selectedSource === src.id ? 'bg-slate-800 text-white border-blue-500 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}
+                                            className={`w-full text-right p-2.5 rounded-lg text-xs font-medium border-r-2 transition-all flex justify-between items-center ${selectedSource === src.id ? 'bg-slate-800 text-white border-blue-500 shadow-md' : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
                                           >
                                               <span>{src.name}</span>
                                               <span className="opacity-50">{getTypeIcon(src.type)}</span>
@@ -331,7 +331,7 @@ const FactFindingGame: React.FC<Props> = ({ onExit, onComplete }) => {
               {/* CENTER PANE: WORKSPACE */}
               <div className="flex-1 flex flex-col gap-4 min-h-0">
                   {/* Source Detail & Action Area */}
-                  <div className="flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 p-6 relative lg:overflow-y-auto min-h-[400px] lg:min-h-0 custom-scrollbar">
+                  <div className="flex-1 bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 relative lg:overflow-y-auto min-h-[400px] lg:min-h-0 custom-scrollbar">
                       {selectedSource ? (
                           (() => {
                               const category = scenario.categories.find(c => c.id === selectedCategory);
@@ -339,15 +339,15 @@ const FactFindingGame: React.FC<Props> = ({ onExit, onComplete }) => {
                               if (!src) return null;
                               return (
                                   <div className="animate-fade-in pb-12">
-                                      <div className="flex justify-between items-start mb-6 pb-6 border-b border-slate-100">
+                                      <div className="flex justify-between items-start mb-6 pb-6 border-b border-slate-100 dark:border-slate-700">
                                           <div>
-                                              <h2 className="text-2xl font-black text-slate-800 flex items-center gap-3">
+                                              <h2 className="text-2xl font-black text-slate-800 dark:text-white flex items-center gap-3">
                                                   {src.name}
-                                                  <span className="text-xs font-normal px-2 py-1 bg-slate-100 rounded text-slate-500">{src.role}</span>
+                                                  <span className="text-xs font-normal px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded text-slate-500 dark:text-slate-400">{src.role}</span>
                                               </h2>
-                                              <p className="text-slate-500 mt-2 text-sm">{src.description}</p>
+                                              <p className="text-slate-500 dark:text-slate-400 mt-2 text-sm">{src.description}</p>
                                           </div>
-                                          <div className="text-center bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                          <div className="text-center bg-slate-50 dark:bg-slate-800 p-3 rounded-xl border border-slate-100 dark:border-slate-700">
                                               <div className={`text-lg font-black ${src.reliability > 80 ? 'text-emerald-500' : src.reliability < 60 ? 'text-red-500' : 'text-amber-500'}`}>{toPersianNum(src.reliability)}%</div>
                                               <div className="text-[10px] text-slate-400 uppercase font-bold">اعتبار منبع</div>
                                           </div>
@@ -366,10 +366,10 @@ const FactFindingGame: React.FC<Props> = ({ onExit, onComplete }) => {
                                                           className={`
                                                               text-right p-4 rounded-xl border-2 transition-all relative overflow-hidden group w-full
                                                               ${isPerformed 
-                                                                  ? 'bg-slate-50 border-slate-200 cursor-default' 
+                                                                  ? 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 cursor-default' 
                                                                   : canAfford 
-                                                                      ? 'bg-white border-blue-100 hover:border-blue-500 hover:shadow-lg active:scale-[0.98]' 
-                                                                      : 'bg-slate-50 border-slate-100 opacity-60 cursor-not-allowed'}
+                                                                      ? 'bg-white dark:bg-slate-800 border-blue-100 dark:border-blue-500/30 hover:border-blue-500 hover:shadow-lg active:scale-[0.98]' 
+                                                                      : 'bg-slate-50 dark:bg-slate-800 border-slate-100 dark:border-slate-700 opacity-60 cursor-not-allowed'}
                                                           `}
                                                       >
                                                           <div className="flex justify-between items-center mb-3 relative z-10">
@@ -377,13 +377,13 @@ const FactFindingGame: React.FC<Props> = ({ onExit, onComplete }) => {
                                                                   ریسک: {action.riskLevel}
                                                               </span>
                                                               {!isPerformed && (
-                                                                  <span className="font-bold text-slate-800 bg-amber-100 px-2 py-1 rounded text-xs flex items-center gap-1">
+                                                                  <span className="font-bold text-slate-800 dark:text-amber-200 bg-amber-100 dark:bg-amber-500/20 px-2 py-1 rounded text-xs flex items-center gap-1">
                                                                       {toPersianNum(action.cost)} <DollarSign size={10} />
                                                                   </span>
                                                               )}
                                                           </div>
                                                           
-                                                          <h4 className={`font-bold mb-1 ${isPerformed ? 'text-slate-500' : 'text-slate-800 group-hover:text-blue-700'}`}>{action.label}</h4>
+                                                          <h4 className={`font-bold mb-1 ${isPerformed ? 'text-slate-500 dark:text-slate-400' : 'text-slate-800 dark:text-slate-100 group-hover:text-blue-700 dark:group-hover:text-blue-400'}`}>{action.label}</h4>
                                                       </button>
 
                                                       {/* Reveal Content Below Button */}
@@ -396,7 +396,7 @@ const FactFindingGame: React.FC<Props> = ({ onExit, onComplete }) => {
                               );
                           })()
                       ) : (
-                          <div className="h-full flex flex-col items-center justify-center text-slate-300">
+                          <div className="h-full flex flex-col items-center justify-center text-slate-300 dark:text-slate-600">
                               <Search size={64} className="mb-4 opacity-50" />
                               <p className="font-bold text-lg">یک منبع را از منوی راست انتخاب کنید</p>
                           </div>
@@ -404,17 +404,17 @@ const FactFindingGame: React.FC<Props> = ({ onExit, onComplete }) => {
                   </div>
 
                   {/* Context & Decision Area (Bottom) */}
-                  <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 flex flex-col md:flex-row gap-6 shrink-0">
+                  <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-4 flex flex-col md:flex-row gap-6 shrink-0">
                       <div className="md:w-1/2">
-                          <h3 className="font-bold text-slate-700 mb-2 flex items-center gap-2 text-sm uppercase tracking-wider">
+                          <h3 className="font-bold text-slate-700 dark:text-slate-200 mb-2 flex items-center gap-2 text-sm uppercase tracking-wider">
                               <AlertTriangle size={16} className="text-amber-500" /> خلاصه وضعیت
                           </h3>
-                          <p className="text-sm text-slate-600 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-100">
+                          <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed bg-slate-50 dark:bg-slate-800 p-3 rounded-xl border border-slate-100 dark:border-slate-700">
                               {scenario.context}
                           </p>
                       </div>
                       <div className="md:w-1/2">
-                          <h3 className="font-bold text-slate-700 mb-2 flex items-center gap-2 text-sm uppercase tracking-wider">
+                          <h3 className="font-bold text-slate-700 dark:text-slate-200 mb-2 flex items-center gap-2 text-sm uppercase tracking-wider">
                               <CheckCircle2 size={16} className="text-emerald-500" /> تصمیم نهایی
                           </h3>
                           <div className="flex flex-col gap-2">
