@@ -4,6 +4,7 @@ import { FiveWhysData } from '../types';
 import { generateFiveWhysData, validateTextAnswer } from '../services/geminiService';
 import { Loader2, AlertTriangle, CheckCircle2, XCircle, Search, Send, HelpCircle, ArrowDown } from 'lucide-react';
 import { toPersianNum } from '../utils';
+import { sfx } from '../services/audioService';
 
 interface Props {
   onExit: () => void;
@@ -90,14 +91,17 @@ const FiveWhysGame: React.FC<Props> = ({ onExit, onComplete }) => {
       if (result.isCorrect) {
           setScore(s => s + 20);
           if (currentLevel < 4) {
+              sfx.playSuccess();
               setCurrentLevel(l => l + 1);
               setUserAnswer('');
               setFeedback(''); // Clear feedback for next level
           } else {
+              sfx.playWin();
               setGameState('finished');
           }
       } else {
           // Enter Rabbit Hole
+          sfx.playError();
           setGameState('rabbit_hole');
           setFeedback(result.feedback || "این علت اصلی نیست. شما وارد مسیر فرعی شدید.");
           setScore(s => Math.max(0, s - 5));

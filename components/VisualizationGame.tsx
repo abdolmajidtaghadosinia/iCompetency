@@ -4,6 +4,7 @@ import { Box, Check, X, TrendingUp, ArrowRight, RotateCw, HelpCircle } from 'luc
 import GameShell from './GameShell';
 import GameResultCard from './GameResultCard';
 import { toPersianNum } from '../utils';
+import { sfx } from '../services/audioService';
 
 interface Props {
   onExit: () => void;
@@ -134,10 +135,12 @@ const VisualizationGame: React.FC<Props> = ({ onExit, onComplete }) => {
       setIsCorrect(correct);
 
       if (correct) {
+          sfx.playSuccess();
           setScore(s => s + (10 * difficulty));
           setDifficulty(d => Math.min(10, d + 1));
           if (navigator.vibrate) navigator.vibrate(50);
       } else {
+          sfx.playError();
           setDifficulty(d => Math.max(1, d - 1));
           if (navigator.vibrate) navigator.vibrate(200);
       }

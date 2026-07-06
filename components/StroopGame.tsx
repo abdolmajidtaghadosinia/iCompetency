@@ -214,10 +214,10 @@ const StroopGame: React.FC<Props> = ({ onExit, onComplete }) => {
         setGameState={setGameState}
         colorTheme="rose"
     >
-      <div className={`h-full w-full flex flex-col items-center justify-center rounded-3xl transition-colors duration-150 ${flash === 'correct' ? 'bg-emerald-100' : flash === 'wrong' ? 'bg-red-100' : ''}`}>
+      <div className={`h-full w-full flex flex-col items-center justify-center rounded-3xl transition-colors duration-150 ${flash === 'correct' ? 'bg-emerald-100 dark:bg-emerald-900/40' : flash === 'wrong' ? 'bg-red-100 dark:bg-red-900/40' : ''}`}>
         {practiceLeft > 0 && (
           <div className="absolute top-24 inset-x-0 flex justify-center z-20 pointer-events-none">
-            <div className="bg-amber-100 border border-amber-300 text-amber-700 px-5 py-2 rounded-full text-sm font-black shadow-md animate-pulse">
+            <div className="bg-amber-100 dark:bg-amber-500/15 border border-amber-300 dark:border-amber-500/40 text-amber-700 dark:text-amber-300 px-5 py-2 rounded-full text-sm font-black shadow-md animate-pulse">
               دور تمرینی ({toPersianNum(practiceLeft)} مانده) — امتیاز و زمان ثبت نمی‌شود
             </div>
           </div>
@@ -230,7 +230,7 @@ const StroopGame: React.FC<Props> = ({ onExit, onComplete }) => {
               >
                   {currentRound.text}
               </h1>
-              <p className="text-center text-slate-400 font-bold mt-6 text-sm uppercase tracking-[0.2em] bg-slate-100 inline-block px-4 py-1 rounded-full mx-auto flex items-center gap-2">
+              <p className="text-center text-slate-400 dark:text-slate-500 font-bold mt-6 text-sm uppercase tracking-[0.2em] bg-slate-100 dark:bg-slate-800 inline-block px-4 py-1 rounded-full mx-auto flex items-center gap-2">
                   <Keyboard size={16} /> رنگ را انتخاب کنید
               </p>
           </div>
@@ -241,10 +241,10 @@ const StroopGame: React.FC<Props> = ({ onExit, onComplete }) => {
              <button
                key={btnColor.name}
                onClick={() => handleAnswer(btnColor.name)}
-               className="relative py-5 rounded-xl bg-white border border-slate-200 shadow-[0_4px_0_rgb(226,232,240)] hover:shadow-[0_2px_0_rgb(226,232,240)] hover:translate-y-[2px] active:shadow-none active:translate-y-[4px] transition-all font-bold text-slate-700 text-xl group"
+               className="relative py-5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-[0_4px_0_rgb(226,232,240)] dark:shadow-[0_4px_0_rgb(30,41,59)] hover:shadow-[0_2px_0_rgb(226,232,240)] dark:hover:shadow-[0_2px_0_rgb(30,41,59)] hover:translate-y-[2px] active:shadow-none active:translate-y-[4px] transition-all font-bold text-slate-700 dark:text-slate-200 text-xl group"
              >
                {btnColor.name}
-               <div className="absolute top-1 left-2 text-[10px] text-slate-300 font-mono border border-slate-100 rounded px-1 group-hover:text-slate-500">
+               <div className="absolute top-1 left-2 text-[10px] text-slate-300 dark:text-slate-600 font-mono border border-slate-100 dark:border-slate-700 rounded px-1 group-hover:text-slate-500 dark:group-hover:text-slate-400">
                    {toPersianNum(idx + 1)}
                </div>
              </button>

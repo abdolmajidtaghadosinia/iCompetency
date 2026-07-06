@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { toPersianNum } from '../utils';
 import { getPerformanceLabel, getTScoreColor, toTScore } from '../utils/scoring';
 import { Trophy, TrendingUp, Activity, CheckCircle2, RotateCcw } from 'lucide-react';
+import { sfx } from '../services/audioService';
 
 interface Metric {
     label: string;
@@ -22,6 +23,11 @@ interface Props {
 const GameResultCard: React.FC<Props> = ({ title, rawScore, scoreKey, metrics, onRetry, onComplete }) => {
     const [tScore, setTScore] = useState(50);
     const [animatedScore, setAnimatedScore] = useState(0);
+
+    // Completion chime once per result screen, shared by every game.
+    useEffect(() => {
+        sfx.playWin();
+    }, []);
 
     useEffect(() => {
         // Calculate T-Score using norms

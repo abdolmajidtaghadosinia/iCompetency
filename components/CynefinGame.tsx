@@ -4,6 +4,7 @@ import { CynefinData } from '../types';
 import { generateCynefinData } from '../services/geminiService';
 import { Loader2, Activity, Brain, CheckCircle2, XCircle, ChevronLeft, ShieldAlert, Compass, AlertTriangle } from 'lucide-react';
 import { toPersianNum } from '../utils';
+import { sfx } from '../services/audioService';
 
 interface Props {
   onExit: () => void;
@@ -66,7 +67,10 @@ const CynefinGame: React.FC<Props> = ({ onExit, onComplete }) => {
     const selectedOption = scenario.options[optionIdx];
 
     if (selectedOption.isCorrect) {
+        sfx.playSuccess();
         setScore(s => s + 20); // 5 scenarios * 20 = 100 max
+    } else {
+        sfx.playError();
     }
   };
 
@@ -77,6 +81,7 @@ const CynefinGame: React.FC<Props> = ({ onExit, onComplete }) => {
           setIndex(prev => prev + 1);
           setSelectedOptionIndex(null);
       } else {
+          sfx.playWin();
           setFinished(true);
       }
   };

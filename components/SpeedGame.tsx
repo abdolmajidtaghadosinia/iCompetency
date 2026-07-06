@@ -4,6 +4,7 @@ import { Zap } from 'lucide-react';
 import { toPersianNum } from '../utils';
 import GameShell from './GameShell';
 import GameResultCard from './GameResultCard';
+import { cleanReactionTimes, median } from '../utils/scoring';
 import { sfx } from '../services/audioService';
 
 interface Props {
@@ -133,9 +134,8 @@ const SpeedGame: React.FC<Props> = ({ onExit, onComplete }) => {
   if (gameState === 'finished') {
       const normalizedScore = Math.min(100, Math.round(score / 50));
 
-      const avgRT = reactionTimes.current.length > 0
-        ? Math.round(reactionTimes.current.reduce((a, b) => a + b, 0) / reactionTimes.current.length)
-        : 0;
+      // Trimmed median: robust to one anticipation or attention lapse.
+      const medRT = Math.round(median(cleanReactionTimes(reactionTimes.current, 200, 10000)));
 
       return (
         <GameResultCard
@@ -144,7 +144,7 @@ const SpeedGame: React.FC<Props> = ({ onExit, onComplete }) => {
             scoreKey="A11"
             metrics={[
                 { label: 'تعداد صحیح', value: toPersianNum(correctCount) },
-                { label: 'میانگین واکنش', value: toPersianNum(avgRT) + ' ms' },
+                { label: 'میانه واکنش', value: medRT > 0 ? toPersianNum(medRT) + ' ms' : '—' },
             ]}
             onRetry={() => {
                 setTimeLeft(GAME_DURATION);

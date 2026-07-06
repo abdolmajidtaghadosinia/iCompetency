@@ -113,7 +113,7 @@ const SwotGame: React.FC<Props> = ({ onExit, onComplete }) => {
 
   if (loading) {
     return (
-      <div className="h-full flex flex-col items-center justify-center bg-slate-50 text-slate-900 animate-fade-in-up">
+      <div className="h-full flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white animate-fade-in-up">
         <Loader2 className="animate-spin w-10 h-10 text-blue-500 mb-4" />
         <p className="text-lg font-medium">در حال تحلیل داده‌های بازار...</p>
       </div>
@@ -122,10 +122,10 @@ const SwotGame: React.FC<Props> = ({ onExit, onComplete }) => {
 
   if (!data) {
     return (
-      <div className="h-full flex flex-col items-center justify-center bg-slate-50 text-slate-900 p-8 text-center">
+      <div className="h-full flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white p-8 text-center">
         <AlertTriangle className="w-12 h-12 text-amber-500 mb-4" />
         <h2 className="text-xl font-bold mb-2">خطا در بارگذاری</h2>
-        <p className="text-slate-500 mb-6 text-sm">ارتباط با سرور هوش مصنوعی برقرار نشد.</p>
+        <p className="text-slate-500 dark:text-slate-400 mb-6 text-sm">ارتباط با سرور هوش مصنوعی برقرار نشد.</p>
         <div className="flex gap-3">
             <button 
                 onClick={() => { setLoading(true); setError(false); generateSwotData().then(d => { setData(d); setLoading(false); }).catch(() => { setError(true); setLoading(false); }); }}
@@ -133,7 +133,7 @@ const SwotGame: React.FC<Props> = ({ onExit, onComplete }) => {
             >
                 تلاش مجدد
             </button>
-            <button onClick={onExit} className="px-6 py-3 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl font-bold transition-colors">
+            <button onClick={onExit} className="px-6 py-3 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-xl font-bold transition-colors">
                 بازگشت
             </button>
         </div>
@@ -148,17 +148,17 @@ const SwotGame: React.FC<Props> = ({ onExit, onComplete }) => {
       const normalizedScore = Math.round((sortCorrect / Math.max(1, data.items.length)) * 50)
         + (strategyResult?.correct ? 50 : 0);
       return (
-        <div className="h-full flex items-center justify-center bg-slate-50 animate-fade-in-up">
-            <div className="max-w-md w-full bg-white p-8 rounded-[2rem] shadow-xl text-center border border-slate-100">
-                 <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6">
+        <div className="h-full flex items-center justify-center bg-slate-50 dark:bg-slate-900 animate-fade-in-up">
+            <div className="max-w-md w-full bg-white dark:bg-slate-800 p-8 rounded-[2rem] shadow-xl text-center border border-slate-100 dark:border-slate-700">
+                 <div className="w-20 h-20 bg-blue-100 dark:bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
                     <BrainCircuit className="w-10 h-10 text-blue-600" />
                  </div>
-                 <h2 className="text-2xl font-bold text-slate-800 mb-2">پایان تحلیل استراتژیک</h2>
-                 <p className="text-slate-500 mb-6">شما فرآیند تحلیل و تدوین استراتژی را تکمیل کردید.</p>
-                 <div className="text-5xl font-black text-blue-600 mb-2">{toPersianNum(normalizedScore)}<span className="text-xl text-slate-400">/۱۰۰</span></div>
+                 <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-2">پایان تحلیل استراتژیک</h2>
+                 <p className="text-slate-500 dark:text-slate-400 mb-6">شما فرآیند تحلیل و تدوین استراتژی را تکمیل کردید.</p>
+                 <div className="text-5xl font-black text-blue-600 dark:text-blue-400 mb-2">{toPersianNum(normalizedScore)}<span className="text-xl text-slate-400">/۱۰۰</span></div>
                  <div className="flex justify-center gap-3 text-xs font-bold text-slate-500 mb-8">
-                     <span className="bg-slate-100 px-3 py-1 rounded-full">طبقه‌بندی: {toPersianNum(sortCorrect)}/{toPersianNum(data.items.length)}</span>
-                     <span className={`px-3 py-1 rounded-full ${strategyResult?.correct ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>
+                     <span className="bg-slate-100 dark:bg-slate-700 dark:text-slate-300 px-3 py-1 rounded-full">طبقه‌بندی: {toPersianNum(sortCorrect)}/{toPersianNum(data.items.length)}</span>
+                     <span className={`px-3 py-1 rounded-full ${strategyResult?.correct ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300' : 'bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-300'}`}>
                         استراتژی: {strategyResult?.correct ? 'صحیح' : 'ناموفق'}
                      </span>
                  </div>
@@ -174,22 +174,22 @@ const SwotGame: React.FC<Props> = ({ onExit, onComplete }) => {
   if (phase === 'sorting') {
       const currentItem = data.items[currentIndex];
       return (
-        <div className="h-full bg-slate-50 flex flex-col overflow-y-auto animate-fade-in-up pb-20 md:pb-0">
-            <div className="bg-white p-3 md:p-4 border-b border-slate-200 shadow-sm">
+        <div className="h-full bg-slate-50 dark:bg-slate-900 flex flex-col overflow-y-auto animate-fade-in-up pb-20 md:pb-0">
+            <div className="bg-white dark:bg-slate-800 p-3 md:p-4 border-b border-slate-200 dark:border-slate-700 shadow-sm">
                 <div className="flex justify-between items-center">
                     <div className="flex items-center gap-2">
-                        <div className="bg-blue-100 p-2 rounded-lg text-blue-600 shrink-0"><Building2 size={18} /></div>
-                        <p className="text-xs text-slate-500 font-bold">فاز ۱: طبقه‌بندی ({toPersianNum(currentIndex + 1)}/{toPersianNum(data.items.length)})</p>
+                        <div className="bg-blue-100 dark:bg-blue-500/20 p-2 rounded-lg text-blue-600 dark:text-blue-400 shrink-0"><Building2 size={18} /></div>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">فاز ۱: طبقه‌بندی ({toPersianNum(currentIndex + 1)}/{toPersianNum(data.items.length)})</p>
                     </div>
-                    <div className="text-lg font-bold text-blue-600 tabular-nums bg-blue-50 px-3 py-1 rounded-full">{toPersianNum(score)}</div>
+                    <div className="text-lg font-bold text-blue-600 dark:text-blue-400 tabular-nums bg-blue-50 dark:bg-blue-500/10 px-3 py-1 rounded-full">{toPersianNum(score)}</div>
                 </div>
-                <p className="text-xs text-slate-600 mt-2 line-clamp-2 leading-relaxed">{data.companyContext}</p>
+                <p className="text-xs text-slate-600 dark:text-slate-300 mt-2 line-clamp-2 leading-relaxed">{data.companyContext}</p>
             </div>
 
             <div className="flex-1 p-8 flex flex-col items-center justify-center relative">
-                <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-8 text-center mb-12 transform transition-all hover:scale-105 duration-300 border border-slate-100">
-                    <h3 className="text-2xl font-bold text-slate-800 mb-4 leading-snug">"{currentItem.text}"</h3>
-                    <div className="h-1 w-16 bg-slate-200 mx-auto rounded-full"></div>
+                <div className="w-full max-w-md bg-white dark:bg-slate-800 rounded-2xl shadow-2xl p-8 text-center mb-12 transform transition-all hover:scale-105 duration-300 border border-slate-100 dark:border-slate-700">
+                    <h3 className="text-2xl font-bold text-slate-800 dark:text-white mb-4 leading-snug">"{currentItem.text}"</h3>
+                    <div className="h-1 w-16 bg-slate-200 dark:bg-slate-600 mx-auto rounded-full"></div>
                 </div>
 
                 {feedback && (
@@ -201,21 +201,21 @@ const SwotGame: React.FC<Props> = ({ onExit, onComplete }) => {
                 )}
 
                 <div className="grid grid-cols-2 gap-4 max-w-2xl w-full">
-                    <button onClick={() => handleChoice('S')} className="h-32 rounded-xl bg-green-100 border-2 border-green-200 text-green-800 text-xl font-bold hover:bg-green-200 hover:scale-105 active:scale-95 transition-all flex flex-col items-center justify-center gap-2 shadow-sm">
+                    <button onClick={() => handleChoice('S')} className="h-32 rounded-xl bg-green-100 dark:bg-green-500/15 border-2 border-green-200 dark:border-green-500/40 text-green-800 dark:text-green-300 text-xl font-bold hover:bg-green-200 dark:hover:bg-green-500/25 hover:scale-105 active:scale-95 transition-all flex flex-col items-center justify-center gap-2 shadow-sm">
                         <span>💪 نقاط قوت</span><span className="text-xs font-normal opacity-75">(داخلی + مثبت)</span>
                     </button>
-                    <button onClick={() => handleChoice('W')} className="h-32 rounded-xl bg-red-100 border-2 border-red-200 text-red-800 text-xl font-bold hover:bg-red-200 hover:scale-105 active:scale-95 transition-all flex flex-col items-center justify-center gap-2 shadow-sm">
+                    <button onClick={() => handleChoice('W')} className="h-32 rounded-xl bg-red-100 dark:bg-red-500/15 border-2 border-red-200 dark:border-red-500/40 text-red-800 dark:text-red-300 text-xl font-bold hover:bg-red-200 dark:hover:bg-red-500/25 hover:scale-105 active:scale-95 transition-all flex flex-col items-center justify-center gap-2 shadow-sm">
                         <span>⚠️ نقاط ضعف</span><span className="text-xs font-normal opacity-75">(داخلی + منفی)</span>
                     </button>
-                    <button onClick={() => handleChoice('O')} className="h-32 rounded-xl bg-blue-100 border-2 border-blue-200 text-blue-800 text-xl font-bold hover:bg-blue-200 hover:scale-105 active:scale-95 transition-all flex flex-col items-center justify-center gap-2 shadow-sm">
+                    <button onClick={() => handleChoice('O')} className="h-32 rounded-xl bg-blue-100 dark:bg-blue-500/15 border-2 border-blue-200 dark:border-blue-500/40 text-blue-800 dark:text-blue-300 text-xl font-bold hover:bg-blue-200 dark:hover:bg-blue-500/25 hover:scale-105 active:scale-95 transition-all flex flex-col items-center justify-center gap-2 shadow-sm">
                         <span>🚀 فرصت‌ها</span><span className="text-xs font-normal opacity-75">(خارجی + مثبت)</span>
                     </button>
-                    <button onClick={() => handleChoice('T')} className="h-32 rounded-xl bg-amber-100 border-2 border-amber-200 text-amber-800 text-xl font-bold hover:bg-amber-200 hover:scale-105 active:scale-95 transition-all flex flex-col items-center justify-center gap-2 shadow-sm">
+                    <button onClick={() => handleChoice('T')} className="h-32 rounded-xl bg-amber-100 dark:bg-amber-500/15 border-2 border-amber-200 dark:border-amber-500/40 text-amber-800 dark:text-amber-300 text-xl font-bold hover:bg-amber-200 dark:hover:bg-amber-500/25 hover:scale-105 active:scale-95 transition-all flex flex-col items-center justify-center gap-2 shadow-sm">
                         <span>🛡️ تهدیدها</span><span className="text-xs font-normal opacity-75">(خارجی + منفی)</span>
                     </button>
                 </div>
             </div>
-            <div className="p-4 text-center"><button onClick={onExit} className="text-slate-400 hover:text-slate-600 transition-colors">خروج</button></div>
+            <div className="p-4 text-center"><button onClick={onExit} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">خروج</button></div>
         </div>
       );
   }
