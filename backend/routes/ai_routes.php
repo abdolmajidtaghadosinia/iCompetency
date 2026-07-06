@@ -185,7 +185,16 @@ function ai_spec_fact_finding(): array
     $source = schema_object(['id'=>str_schema(),'name'=>str_schema(),'role'=>str_schema(),'type'=>str_schema(),'reliability'=>int_schema(),'description'=>str_schema(),'actions'=>schema_array($action)], ['id','name','role','type','reliability','description','actions']);
     $category = schema_object(['id'=>str_schema(),'title'=>str_schema(),'sources'=>schema_array($source)], ['id','title','sources']);
     $option = schema_object(['id'=>str_schema(),'text'=>str_schema(),'isCorrect'=>bool_schema(),'feedback'=>str_schema()], ['id','text','isCorrect','feedback']);
-    return ['prompt'=>'Generate a Persian fact-finding investigation game with budget, evidence sources, red herrings and final options. Return JSON only.', 'schema'=>schema_object(['id'=>str_schema(),'title'=>str_schema(),'context'=>str_schema(),'budget'=>int_schema(),'categories'=>schema_array($category),'options'=>schema_array($option)], ['id','title','context','budget','categories','options']), 'fallback'=>fact_finding_fallback()];
+    $prompt = 'Design a Persian (Farsi) detective fact-finding case. Return JSON only, all human-readable text in Persian.'
+        ."\nRequirements:"
+        ."\n- context: 2-3 sentences framing the mystery."
+        ."\n- budget: an integer 250-400 (investigation credits)."
+        ."\n- categories: EXACTLY 3 categories, each with a Persian title. EVERY category MUST contain 2-3 sources (never empty)."
+        ."\n- each source: name, role, type (one of exactly HUMINT, SIGINT, OSINT), reliability (integer 0-100), description, and 1-2 actions."
+        ."\n- each action: label, cost (integer 20-80, and the sum of all action costs must exceed the budget so the player must prioritise), riskLevel (one of exactly Low, Medium, High), content (the Persian evidence revealed), isCrucial (boolean)."
+        ."\n- Mark 2-4 actions across the whole case as isCrucial:true (the clues that point to the truth). Include at least 2 non-crucial red-herring actions from low-reliability sources with misleading content."
+        ."\n- options: 3-4 final verdict options, EXACTLY ONE with isCorrect:true; each has a Persian feedback explaining why it is right or wrong based on the crucial clues.";
+    return ['prompt'=>$prompt, 'schema'=>schema_object(['id'=>str_schema(),'title'=>str_schema(),'context'=>str_schema(),'budget'=>int_schema(),'categories'=>schema_array($category),'options'=>schema_array($option)], ['id','title','context','budget','categories','options']), 'fallback'=>fact_finding_fallback()];
 }
 
 function five_whys_fallback(): array
@@ -234,21 +243,30 @@ function fact_finding_fallback(): array
         'context'=>'مستندات کلیدی پروژه زئوس پیش از رونمایی منتشر شده است. منشأ نشت را با بودجه محدود کشف کنید.',
         'budget'=>150,
         'categories'=>[
-            ['id'=>'cat_humint','title'=>'منابع انسانی (HUMINT)','sources'=>[[
-                'id'=>'src_dev','name'=>'سامیار','role'=>'برنامه‌نویس ارشد','type'=>'HUMINT','reliability'=>60,'description'=>'توسعه‌دهنده‌ای که اخیراً با مدیریت اختلاف داشته است.',
-                'actions'=>[['id'=>'act_dev_interview','label'=>'مصاحبه با سامیار','cost'=>30,'riskLevel'=>'High','content'=>'سامیار می‌گوید دیشب در سفر بوده و لپ‌تاپش روشن نبوده است.','isCrucial'=>true]],
-            ]]],
-            ['id'=>'cat_sigint','title'=>'شواهد دیجیتال (SIGINT)','sources'=>[[
-                'id'=>'src_logs','name'=>'سرور لاگ‌ها','role'=>'مانیتورینگ','type'=>'SIGINT','reliability'=>100,'description'=>'رکوردهای دسترسی VPN و فایل‌ها.',
-                'actions'=>[
-                    ['id'=>'act_logs_vpn','label'=>'بررسی VPN','cost'=>40,'riskLevel'=>'Low','content'=>'چند تلاش ناموفق و سپس ورود موفق از IP نامتعارف با حساب samiyar ثبت شده است.','isCrucial'=>true],
-                    ['id'=>'act_logs_data','label'=>'بررسی دانلود فایل','cost'=>50,'riskLevel'=>'Low','content'=>'فایل محرمانه زئوس با حساب samiyar از VPN دانلود شده است.','isCrucial'=>true],
-                ],
-            ]]],
+            ['id'=>'cat_humint','title'=>'منابع انسانی','sources'=>[
+                ['id'=>'src_dev','name'=>'سامیار','role'=>'برنامه‌نویس ارشد','type'=>'HUMINT','reliability'=>60,'description'=>'توسعه‌دهنده‌ای که اخیراً با مدیریت اختلاف داشته است.',
+                    'actions'=>[['id'=>'act_dev_interview','label'=>'مصاحبه با سامیار','cost'=>30,'riskLevel'=>'High','content'=>'سامیار می‌گوید دیشب در سفر بوده و لپ‌تاپش روشن نبوده است.','isCrucial'=>false]]],
+                ['id'=>'src_hr','name'=>'مدیر منابع انسانی','role'=>'شاهد','type'=>'HUMINT','reliability'=>75,'description'=>'از روابط کاری تیم مطلع است.',
+                    'actions'=>[['id'=>'act_hr_talk','label'=>'گفتگو درباره سامیار','cost'=>25,'riskLevel'=>'Low','content'=>'سامیار کارمند وظیفه‌شناسی بوده اما گذرواژه‌هایش را روی کاغذ می‌نوشته است.','isCrucial'=>false]]],
+            ]],
+            ['id'=>'cat_sigint','title'=>'شواهد دیجیتال','sources'=>[
+                ['id'=>'src_logs','name'=>'سرور لاگ‌ها','role'=>'مانیتورینگ','type'=>'SIGINT','reliability'=>100,'description'=>'رکوردهای دسترسی VPN و فایل‌ها.',
+                    'actions'=>[
+                        ['id'=>'act_logs_vpn','label'=>'بررسی VPN','cost'=>40,'riskLevel'=>'Low','content'=>"ACCESS_LOG\nFAILED x4 user=samiyar\nSUCCESS user=samiyar ip=203.0.113.9 (نامتعارف)",'isCrucial'=>true],
+                        ['id'=>'act_logs_data','label'=>'بررسی دانلود فایل','cost'=>50,'riskLevel'=>'Low','content'=>"FILE_ACCESS\nZEUS_SECRET.zip downloaded via VPN user=samiyar",'isCrucial'=>true],
+                    ]],
+            ]],
+            ['id'=>'cat_osint','title'=>'منابع علنی','sources'=>[
+                ['id'=>'src_social','name'=>'شبکه اجتماعی','role'=>'منبع باز','type'=>'OSINT','reliability'=>35,'description'=>'فعالیت عمومی افراد مرتبط.',
+                    'actions'=>[['id'=>'act_social','label'=>'بررسی پروفایل رقیب','cost'=>30,'riskLevel'=>'Medium','content'=>'شرکت رقیب اخیراً محصولی مشابه معرفی کرده اما تاریخ آن پیش از نشت است.','isCrucial'=>false]]],
+                ['id'=>'src_email','name'=>'ایمیل سازمانی','role'=>'مکاتبات','type'=>'SIGINT','reliability'=>90,'description'=>'صندوق ایمیل خروجی.',
+                    'actions'=>[['id'=>'act_email','label'=>'بررسی ایمیل‌های خروجی','cost'=>45,'riskLevel'=>'Medium','content'=>'ایمیلی از IP نامتعارف با پیوست فایل زئوس به یک آدرس ناشناس ارسال شده است.','isCrucial'=>true]]],
+            ]],
         ],
         'options'=>[
-            ['id'=>'opt_samiyar','text'=>'سامیار مقصر اصلی است.','isCorrect'=>false,'feedback'=>'شواهد نشان می‌دهد حساب او هک شده، نه اینکه خودش الزاماً عامل باشد.'],
-            ['id'=>'opt_hacker','text'=>'مهاجم خارجی حساب سامیار را هک کرده و فایل را دانلود کرده است.','isCorrect'=>true,'feedback'=>'درست است؛ تلاش‌های ناموفق، IP نامتعارف و دانلود فایل این نتیجه را پشتیبانی می‌کند.'],
+            ['id'=>'opt_samiyar','text'=>'سامیار مقصر اصلی است.','isCorrect'=>false,'feedback'=>'شواهد نشان می‌دهد حساب او (با گذرواژه لو رفته) هک شده، نه اینکه خودش عامل باشد.'],
+            ['id'=>'opt_rival','text'=>'شرکت رقیب اطلاعات را دزدیده است.','isCorrect'=>false,'feedback'=>'تاریخ محصول رقیب پیش از نشت است؛ این یک ردِ گم‌کن است.'],
+            ['id'=>'opt_hacker','text'=>'مهاجم خارجی حساب سامیار را هک کرده و فایل را از VPN دانلود و ایمیل کرده است.','isCorrect'=>true,'feedback'=>'درست است؛ تلاش‌های ناموفق ورود، IP نامتعارف، دانلود فایل و ایمیل خروجی همگی این نتیجه را تأیید می‌کنند.'],
         ],
     ];
 }
