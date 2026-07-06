@@ -50,7 +50,7 @@ All 14+ mini-games follow the same shape: **intro → play → score → `onComp
 ## Styling
 
 - Tailwind utility classes only. Design tokens (brand colors, custom shadows/radii, font family) live in `tailwind.config.ts` — don't reintroduce inline `<style>` blocks or a CDN script.
-- Dark mode is class-based (`darkMode: 'class'`), toggled on `<html>` from `App.tsx`. New components need `dark:` variants for every surface. **No game component currently has any `dark:` classes** (only the dashboard/hub/sidebar shell does) — playing any game while dark mode is on currently flashes back to a light theme. Don't repeat this in new games; retrofitting the existing ones is tracked separately.
+- Dark mode is class-based (`darkMode: 'class'`), toggled on `<html>` from `App.tsx`. New components need `dark:` variants for every surface. `GameShell`, `GameResultCard`, and the light-themed game content areas carry `dark:` variants; several games (FiveWhys, Cynefin, Speed/Multitask play areas) are deliberately dark-only by design. Never add a light-only surface without its `dark:` counterpart.
 - RTL is global (`dir="rtl"` on `<html>`). Avoid hardcoded `left`/`right` positioning where it implies a direction; this project doesn't use the `rtl:`/`ltr:` variant plugin, so double-check mirroring manually.
 
 ## API conventions
@@ -68,9 +68,9 @@ All 14+ mini-games follow the same shape: **intro → play → score → `onComp
 
 ## Known gaps
 
-- `MINIGAME_5WHYS`, `MINIGAME_SWOT`, `MINIGAME_CYNEFIN` are fully implemented and server-allowlisted but not registered in any hub, so they're currently unreachable from the UI.
-- No game component has `dark:` styling (see Styling above).
 - `GET /game/nodes` exists on the backend but nothing in the frontend calls it; `JourneyMap.tsx` hardcodes its own copy of the node list instead.
+- The methodology/scenario games (`FiveWhysGame`, `SwotGame`, `CynefinGame`, `RoleplayGame`, `FactFindingGame`, `BigFiveGame`) still hand-roll their own intro/exit/result chrome instead of `GameShell`/`GameResultCard`; the cognitive games are all on the shared shell.
+- Reaction-time games share `cleanReactionTimes`/`median` from `utils/scoring.ts` — use them (not raw means) for any new RT-based metric.
 
 ## Commit discipline
 
