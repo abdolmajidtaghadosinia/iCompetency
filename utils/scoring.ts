@@ -96,6 +96,25 @@ function probit(p: number): number {
           ((((d1 * q + d2) * q + d3) * q + d4) * q + 1);
 }
 
+// --- Reaction-Time Hygiene ---
+
+/**
+ * Drops reaction times outside the plausible human range: presses faster
+ * than ~200ms are anticipations (the answer was chosen before the stimulus
+ * was processed) and very slow ones are attention lapses. Both are noise,
+ * not measurement, and they wreck a mean-based estimate.
+ */
+export const cleanReactionTimes = (rts: number[], minMs = 200, maxMs = 4000): number[] =>
+    rts.filter(rt => rt >= minMs && rt <= maxMs);
+
+/** Median: robust central tendency for skewed RT distributions. */
+export const median = (values: number[]): number => {
+    if (values.length === 0) return 0;
+    const sorted = [...values].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+};
+
 // --- Specific Game Calculators ---
 
 /**

@@ -4,7 +4,7 @@ import { Eye, Keyboard } from 'lucide-react';
 import GameShell from './GameShell';
 import GameResultCard from './GameResultCard';
 import { toPersianNum } from '../utils';
-import { calculateStroopScore } from '../utils/scoring';
+import { calculateStroopScore, cleanReactionTimes, median } from '../utils/scoring';
 import { sfx } from '../services/audioService';
 
 interface Props {
@@ -162,24 +162,24 @@ const StroopGame: React.FC<Props> = ({ onExit, onComplete }) => {
 
   if (gameState === 'finished') {
       const accuracy = attempts > 0 ? (correctCount / attempts) : 0;
-      const { congruentRTs, incongruentRTs } = congruencyData.current;
 
-      const avgCongruentRT = congruentRTs.length > 0
-          ? congruentRTs.reduce((a,b) => a+b, 0) / congruentRTs.length
-          : 0;
+      // Anticipations (<200ms) and lapses (>4s) are noise, and RT
+      // distributions are right-skewed, so the interference contrast uses
+      // trimmed medians instead of raw means.
+      const congruentRTs = cleanReactionTimes(congruencyData.current.congruentRTs);
+      const incongruentRTs = cleanReactionTimes(congruencyData.current.incongruentRTs);
+      const medCongruentRT = median(congruentRTs);
+      const medIncongruentRT = median(incongruentRTs);
 
-      const avgIncongruentRT = incongruentRTs.length > 0
-          ? incongruentRTs.reduce((a,b) => a+b, 0) / incongruentRTs.length
-          : 0;
-
-      // The interference contrast needs at least one RT sample on each side;
-      // without both, fall back to an accuracy-only score around the norm mean
-      // instead of feeding a zero baseline into the formula.
-      const hasBothSamples = congruentRTs.length > 0 && incongruentRTs.length > 0;
+      // A stable contrast needs a few samples on each side; with fewer, fall
+      // back to an accuracy-only score around the norm mean instead of
+      // feeding a noisy baseline into the formula.
+      const MIN_RT_SAMPLES = 3;
+      const hasBothSamples = congruentRTs.length >= MIN_RT_SAMPLES && incongruentRTs.length >= MIN_RT_SAMPLES;
       const inhibitionScore = hasBothSamples
-          ? calculateStroopScore(avgIncongruentRT, avgCongruentRT, accuracy)
+          ? calculateStroopScore(medIncongruentRT, medCongruentRT, accuracy)
           : Math.min(100, Math.round(40 * accuracy));
-      const stroopEffect = hasBothSamples ? Math.round(Math.max(0, avgIncongruentRT - avgCongruentRT)) : 0;
+      const stroopEffect = hasBothSamples ? Math.round(Math.max(0, medIncongruentRT - medCongruentRT)) : 0;
 
       return (
           <GameResultCard
@@ -189,7 +189,7 @@ const StroopGame: React.FC<Props> = ({ onExit, onComplete }) => {
               metrics={[
                   { label: 'دقت', value: toPersianNum(Math.round(accuracy * 100)) + '%' },
                   { label: 'اثر استروپ', value: toPersianNum(stroopEffect) + ' ms', subtext: 'هرچه کمتر، بهتر' },
-                  { label: 'سرعت ناسازگار', value: toPersianNum(Math.round(avgIncongruentRT)) + ' ms' }
+                  { label: 'میانه واکنش ناسازگار', value: toPersianNum(Math.round(medIncongruentRT)) + ' ms' }
               ]}
               onRetry={handleStart}
               onComplete={() => onComplete(inhibitionScore)}

@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
   calculateDPrime,
   calculateStroopScore,
+  cleanReactionTimes,
+  median,
   toTScore,
   calculateIndices,
   getPerformanceLabel,
@@ -9,6 +11,34 @@ import {
   getCareerFit,
   type RawScores,
 } from './scoring';
+
+describe('cleanReactionTimes', () => {
+  it('drops anticipations below 200ms and lapses above 4000ms', () => {
+    expect(cleanReactionTimes([50, 199, 200, 750, 4000, 4001, 9000])).toEqual([200, 750, 4000]);
+  });
+
+  it('returns an empty array when every sample is noise', () => {
+    expect(cleanReactionTimes([10, 100000])).toEqual([]);
+  });
+});
+
+describe('median', () => {
+  it('returns the middle value for odd-length input regardless of order', () => {
+    expect(median([900, 300, 500])).toBe(500);
+  });
+
+  it('averages the two middle values for even-length input', () => {
+    expect(median([200, 400, 600, 1000])).toBe(500);
+  });
+
+  it('is robust to a single extreme outlier, unlike the mean', () => {
+    expect(median([500, 510, 520, 10000])).toBe(515);
+  });
+
+  it('returns 0 for empty input', () => {
+    expect(median([])).toBe(0);
+  });
+});
 
 describe('calculateDPrime', () => {
   it('gives a high positive value for near-perfect performance', () => {
