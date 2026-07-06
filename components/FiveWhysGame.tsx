@@ -108,6 +108,9 @@ const FiveWhysGame: React.FC<Props> = ({ onExit, onComplete }) => {
       }
   };
 
+  // Canned offline content must not be recorded as a real assessment result.
+  const isFallback = data?._fallback === true;
+
   if (gameState === 'finished' && data) {
     return (
       <GameResultCard
@@ -117,7 +120,7 @@ const FiveWhysGame: React.FC<Props> = ({ onExit, onComplete }) => {
               { label: 'زنجیره علت‌ها', value: `${toPersianNum(5)}/${toPersianNum(5)}` },
               { label: 'ریشه مشکل', value: 'کشف شد' },
           ]}
-          onComplete={() => onComplete(score)}
+          onComplete={() => isFallback ? onExit() : onComplete(score)}
       />
     );
   }
@@ -163,6 +166,11 @@ const FiveWhysGame: React.FC<Props> = ({ onExit, onComplete }) => {
 
         {data && levelData && (
           <div className="max-w-2xl mx-auto w-full flex-1 flex flex-col relative">
+            {isFallback && (
+                <div className="mb-4 bg-amber-500/15 border border-amber-500/40 text-amber-300 px-4 py-2 rounded-xl text-xs font-bold text-center">
+                    نسخه آفلاین — این اجرا در کارنامه ثبت نمی‌شود.
+                </div>
+            )}
             <div className="text-center text-xs text-slate-500 font-bold mb-4">سطح {toPersianNum(currentLevel + 1)} از ۵</div>
 
             {/* Chain History */}

@@ -83,6 +83,9 @@ const CynefinGame: React.FC<Props> = ({ onExit, onComplete }) => {
       }
   };
 
+  // Canned offline content must not be recorded as a real assessment result.
+  const isFallback = data?._fallback === true;
+
   if (gameState === 'finished' && data) {
       // The AI may return more or fewer than 5 scenarios, so the final score
       // is the correct-answer ratio on a fixed 0-100 scale rather than the
@@ -96,7 +99,7 @@ const CynefinGame: React.FC<Props> = ({ onExit, onComplete }) => {
                 { label: 'تشخیص صحیح', value: `${toPersianNum(correctCount)}/${toPersianNum(data.scenarios.length)}` },
                 { label: 'دامنه‌های سنجیده', value: toPersianNum(data.scenarios.length) },
             ]}
-            onComplete={() => onComplete(finalScore)}
+            onComplete={() => isFallback ? onExit() : onComplete(finalScore)}
         />
       );
   }
@@ -146,6 +149,11 @@ const CynefinGame: React.FC<Props> = ({ onExit, onComplete }) => {
                 <div className="h-full bg-rose-500 transition-all duration-500 ease-out" style={{ width: `${progress}%` }}></div>
             </div>
 
+            {isFallback && (
+                <div className="mx-4 mt-3 bg-amber-500/15 border border-amber-500/40 text-amber-300 px-4 py-2 rounded-xl text-xs font-bold text-center">
+                    نسخه آفلاین (سرویس هوش مصنوعی در دسترس نیست) — این اجرا در کارنامه ثبت نمی‌شود.
+                </div>
+            )}
             <div className="text-center text-xs text-slate-500 font-medium pt-3">
                 سناریو {toPersianNum(index + 1)} از {toPersianNum(data.scenarios.length)}
             </div>

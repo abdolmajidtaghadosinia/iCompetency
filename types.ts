@@ -25,7 +25,6 @@ export interface UserProfile {
       A13_Orient: number;     // Score
       A14_Stroop: number;     // Inhibition Score
       A15_Multi: number;      // Efficiency Score
-      A17_Decision: number;   // Net Score
       A18_Fact: number;       // Efficiency
     };
     tScores: {
@@ -158,31 +157,37 @@ export interface JourneyNode {
 }
 
 // Mini Game Types
-export interface FiveWhysData { 
-  problemStatement: string; 
+// `_fallback` is set by the backend when the AI generation failed and canned
+// offline content was returned instead; games use it to avoid recording a
+// score on a run the user didn't really face.
+export interface FiveWhysData {
+  problemStatement: string;
   levels: {
     level: number;
     question: string;
     idealAnswer: string; // Used for semantic matching
     hint: string;
-  }[]; 
+  }[];
+  _fallback?: boolean;
 }
 
-export interface SwotData { 
-  companyContext: string; 
+export interface SwotData {
+  companyContext: string;
   items: { text: string; category: 'S'|'W'|'O'|'T'; reason: string }[];
   strategyPhase: {
     question: string;
     options: { text: string; isCorrect: boolean; feedback: string }[];
   };
+  _fallback?: boolean;
 }
 
-export interface CynefinData { 
+export interface CynefinData {
   scenarios: {
     description: string;
     correctDomain: string; // Simple, Complicated, etc.
     options: { text: string; isCorrect: boolean; feedback: string }[]; // Behavioral options
-  }[]; 
+  }[];
+  _fallback?: boolean;
 }
 
 // --- Fact Finding Types ---
@@ -220,4 +225,5 @@ export interface FactFindingScenario {
   budget: number;
   categories: FactCategory[];
   options: { id: string; text: string; isCorrect: boolean; feedback: string }[];
+  _fallback?: boolean;
 }

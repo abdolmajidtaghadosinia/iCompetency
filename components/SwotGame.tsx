@@ -115,6 +115,9 @@ const SwotGame: React.FC<Props> = ({ onExit, onComplete }) => {
       }, 3000);
   };
 
+  // Canned offline content must not be recorded as a real assessment result.
+  const isFallback = data?._fallback === true;
+
   if (gameState === 'finished' && data) {
       // AI generates 8-10 items, so the raw point total has a variable maximum.
       // Normalize: sorting is worth 50 (proportional to items) and picking the
@@ -129,7 +132,7 @@ const SwotGame: React.FC<Props> = ({ onExit, onComplete }) => {
                 { label: 'طبقه‌بندی صحیح', value: `${toPersianNum(sortCorrect)}/${toPersianNum(data.items.length)}` },
                 { label: 'انتخاب استراتژی', value: strategyResult?.correct ? 'صحیح' : 'ناموفق' },
             ]}
-            onComplete={() => onComplete(normalizedScore)}
+            onComplete={() => isFallback ? onExit() : onComplete(normalizedScore)}
         />
       );
   }
@@ -181,6 +184,11 @@ const SwotGame: React.FC<Props> = ({ onExit, onComplete }) => {
                             <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">فاز ۱: طبقه‌بندی ({toPersianNum(currentIndex + 1)}/{toPersianNum(data.items.length)})</p>
                         </div>
                     </div>
+                    {isFallback && (
+                        <div className="mt-2 bg-amber-100 dark:bg-amber-500/15 border border-amber-300 dark:border-amber-500/40 text-amber-700 dark:text-amber-300 px-3 py-1.5 rounded-lg text-[11px] font-bold text-center">
+                            نسخه آفلاین — این اجرا در کارنامه ثبت نمی‌شود.
+                        </div>
+                    )}
                     <p className="text-xs text-slate-600 dark:text-slate-300 mt-2 line-clamp-2 leading-relaxed">{data.companyContext}</p>
                 </div>
 

@@ -37,7 +37,11 @@ function ai_generate(): void
         success_response(call_avalai_json($spec['prompt'], $spec['schema']));
     } catch (Throwable $e) {
         error_log('[AvalAI fallback] ' . $task . ': ' . $e->getMessage());
-        success_response($spec['fallback']);
+        // Mark fallback content so the client can tell canned offline data
+        // apart from a real generation and refuse to record a score on it.
+        $fb = $spec['fallback'];
+        if (is_array($fb)) $fb['_fallback'] = true;
+        success_response($fb);
     }
 }
 
