@@ -1,0 +1,120 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@font-face {
+  font-family: 'Arad';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/arad/Arad-Regular.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Arad';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/fonts/arad/Arad-Medium.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Arad';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/fonts/arad/Arad-SemiBold.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Arad';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/arad/Arad-Bold.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Arad';
+  font-style: normal;
+  font-weight: 900;
+  font-display: swap;
+  src: url('/fonts/arad/Arad-Black.woff2') format('woff2');
+}
+
+:root {
+  --bg-color: #f8fafc;
+  --card-bg: #ffffff;
+}
+
+.dark {
+  --bg-color: #0f172a;
+  --card-bg: #1e293b;
+}
+
+body {
+  background-color: var(--bg-color);
+  color: #334155;
+  font-family: 'Arad', sans-serif;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  transition: background-color 0.3s ease;
+}
+
+/* Custom Scrollbar Normalized */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 99px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: #475569;
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+/* Consistent Animations */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }
+.animate-fade-in-up { animation: fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+.animate-scale-in { animation: scaleIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+
+/* Print Styles */
+@media print {
+  @page { size: A4; margin: 0; }
+  body { 
+    background: white !important; 
+    color: black !important; 
+    overflow: visible !important; 
+    height: auto !important;
+  }
+  #root, #root > * { 
+    height: auto !important; 
+    overflow: visible !important; 
+    position: static !important;
+  }
+  .print-container-wrapper { 
+    display: block !important; 
+    height: auto !important;
+    overflow: visible !important;
+    position: static !important;
+  }
+}
