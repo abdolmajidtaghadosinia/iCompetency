@@ -2,14 +2,18 @@
 // utils/scoring.ts
 
 // --- Constants & Norms (Simulated based on v2.0 Spec) ---
+// Provisional norms — placeholders until empirical means/SDs are computed
+// from real runs (see docs/assessment-quality-review.md, phase 2). Kept in
+// sync by hand with scoring_norms() in backend/logic/scoring.php.
+// A10/A11 are on the gamification-free construct measures (0-100 throughput
+// scales) submitted in payload.cognitiveRaw, not the old point totals.
 const NORMS = {
-  // Mean and Standard Deviation for T-Score Calculation (Population Norms)
   A9a: { mean: 6.5, sd: 1.5 },   // Corsi Span
   A9b: { mean: 75, sd: 15 },     // Paired Accuracy
   A9c: { mean: 2.5, sd: 1.0 },   // N-Back d-prime (Typical d' ranges 0-4)
-  A10: { mean: 450, sd: 150 },   // Math Weighted Score
+  A10: { mean: 50, sd: 18 },     // Math throughput (weighted correct/min × accuracy)
   A10Plus: { mean: 50, sd: 20 }, // Pattern Score
-  A11: { mean: 60, sd: 15 },     // Speed Score
+  A11: { mean: 50, sd: 18 },     // Perceptual-speed throughput (RT-based × accuracy)
   A12: { mean: 50, sd: 20 },     // Visualization Score
   A13: { mean: 60, sd: 20 },     // Orientation Score
   A14: { mean: 50, sd: 15 },     // Stroop Inhibition Score
@@ -182,21 +186,26 @@ export const calculateIndices = (raw: RawScores): TScores => {
   const tA13 = toTScore(raw.A13_Orient, 'A13');
   const SI = Math.round((tA12 + tA13) / 2);
 
-  // 5. Executive Index (EI)
+  // 5. Executive Index (EI) — secondary display index only. Its parts
+  // (A14/A15/A10+) already live inside AI and RI, so it is deliberately left
+  // out of TCS below to avoid double-weighting the executive tests.
   const EI = Math.round((tA14 + tA15 + tA10Plus) / 3);
 
-  // 6. Total Cognitive Score (TCS)
+  // 6. Total Cognitive Score (TCS) — weighted mean of the four domains backed
+  // by distinct tests, renormalized to sum to 1.
   const TCS = Math.round(
-    (MI * 0.20) + (AI * 0.20) + (RI * 0.25) + (SI * 0.15) + (EI * 0.20)
+    (MI * 0.25) + (AI * 0.25) + (RI * 0.30) + (SI * 0.20)
   );
 
   return { MI, AI, RI, SI, EI, TCS };
 };
 
+// Relative-to-users wording, not population percentiles: norms are still
+// provisional, so a concrete "Top 2%" claim would overstate the data.
 export const getPerformanceLabel = (tScore: number): string => {
-  if (tScore >= 70) return 'عالی (Top 2%)';
+  if (tScore >= 70) return 'بسیار بالا';
   if (tScore >= 60) return 'بالاتر از میانگین';
-  if (tScore >= 40) return 'متوسط (نرمال)';
+  if (tScore >= 40) return 'متوسط';
   if (tScore >= 30) return 'پایین‌تر از میانگین';
   return 'نیازمند توجه';
 };

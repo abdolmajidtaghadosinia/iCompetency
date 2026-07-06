@@ -87,16 +87,16 @@ describe('calculateStroopScore', () => {
 
 describe('toTScore', () => {
   it('returns exactly 50 when the raw score equals the population mean', () => {
-    expect(toTScore(450, 'A10')).toBe(50);
+    // A10 provisional norm is mean 50, sd 18 (construct-measure scale).
+    expect(toTScore(50, 'A10')).toBe(50);
   });
 
   it('clamps to 80 for scores far above the mean', () => {
-    expect(toTScore(1000, 'A10')).toBe(80);
+    expect(toTScore(200, 'A10')).toBe(80);
   });
 
   it('clamps to 20 for scores far below the mean', () => {
-    expect(toTScore(0, 'A10')).toBe(20);
-    expect(toTScore(-1000, 'A10')).toBe(20);
+    expect(toTScore(-200, 'A10')).toBe(20);
   });
 
   it('falls back to 50 for an unrecognized norm key instead of throwing', () => {
@@ -109,9 +109,9 @@ describe('calculateIndices', () => {
     A9a_Corsi: 6.5,
     A9b_Paired: 75,
     A9c_NBack: 2.5,
-    A10_Math: 450,
+    A10_Math: 50,
     A10Plus_Pattern: 50,
-    A11_Speed: 60,
+    A11_Speed: 50,
     A12_Visual: 50,
     A13_Orient: 60,
     A14_Stroop: 50,
@@ -126,12 +126,23 @@ describe('calculateIndices', () => {
   });
 
   it('propagates an above-average Reasoning score into TCS at its documented weight', () => {
-    const result = calculateIndices({ ...meanRawScores, A10_Math: 1000 }); // clamps to T-score 80
+    const result = calculateIndices({ ...meanRawScores, A10_Math: 200 }); // clamps to T-score 80
     expect(result.RI).toBe(60); // round((80 + 50 + 50) / 3)
     expect(result.MI).toBe(50);
     expect(result.AI).toBe(50);
     expect(result.SI).toBe(50);
-    // TCS = 50*0.20 + 50*0.20 + 60*0.25 + 50*0.15 + 50*0.20 = 52.5 -> rounds to 53
+    // TCS excludes EI (double-counted); = 50*0.25 + 50*0.25 + 60*0.30 + 50*0.20 = 53
+    expect(result.TCS).toBe(53);
+  });
+
+  it('excludes EI from TCS so executive tests are not double-weighted', () => {
+    // A14_Stroop feeds AI and EI but not TCS directly; a big EI swing alone
+    // must not move TCS beyond its effect through AI.
+    const result = calculateIndices({ ...meanRawScores, A14_Stroop: 200 });
+    // AI = round((50 + 80 + 50)/3) = 60; EI = round((80+50+50)/3) = 60
+    expect(result.AI).toBe(60);
+    expect(result.EI).toBe(60);
+    // TCS = 50*0.25 + 60*0.25 + 50*0.30 + 50*0.20 = 52.5 -> 53 (EI's 60 not counted)
     expect(result.TCS).toBe(53);
   });
 });
@@ -151,11 +162,11 @@ describe('getCareerFit', () => {
 
 describe('getPerformanceLabel', () => {
   it.each([
-    [70, 'عالی (Top 2%)'],
+    [70, 'بسیار بالا'],
     [69, 'بالاتر از میانگین'],
     [60, 'بالاتر از میانگین'],
-    [59, 'متوسط (نرمال)'],
-    [40, 'متوسط (نرمال)'],
+    [59, 'متوسط'],
+    [40, 'متوسط'],
     [39, 'پایین‌تر از میانگین'],
     [30, 'پایین‌تر از میانگین'],
     [29, 'نیازمند توجه'],

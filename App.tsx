@@ -114,7 +114,6 @@ const initialUser: UserProfile = {
       A13_Orient: 0,
       A14_Stroop: 0,
       A15_Multi: 0,
-      A17_Decision: 0,
       A18_Fact: 0
     },
     tScores: {
@@ -361,9 +360,9 @@ function App() {
                   />
                 )}
               />
-              <Route path={VIEW_PATHS[AppView.MINIGAME_MATH]} element={<MathGame onExit={() => changeView(AppView.JOURNEY_MAP)} onComplete={(s) => handleMiniGameComplete(s, 'node-2', AppView.MINIGAME_MATH)} />} />
+              <Route path={VIEW_PATHS[AppView.MINIGAME_MATH]} element={<MathGame onExit={() => changeView(AppView.JOURNEY_MAP)} onComplete={(s, payload) => handleMiniGameComplete(s, 'node-2', AppView.MINIGAME_MATH, payload)} />} />
               <Route path={VIEW_PATHS[AppView.MINIGAME_PATTERN]} element={<PatternGame onExit={() => changeView(AppView.MINIGAME_HUB)} onComplete={(s) => handleMiniGameComplete(s, '', AppView.MINIGAME_PATTERN)} />} />
-              <Route path={VIEW_PATHS[AppView.MINIGAME_SPEED]} element={<SpeedGame onExit={() => changeView(AppView.JOURNEY_MAP)} onComplete={(s) => handleMiniGameComplete(s, 'node-3', AppView.MINIGAME_SPEED)} />} />
+              <Route path={VIEW_PATHS[AppView.MINIGAME_SPEED]} element={<SpeedGame onExit={() => changeView(AppView.JOURNEY_MAP)} onComplete={(s, payload) => handleMiniGameComplete(s, 'node-3', AppView.MINIGAME_SPEED, payload)} />} />
               <Route path={VIEW_PATHS[AppView.MINIGAME_VISUALIZATION]} element={<VisualizationGame onExit={() => changeView(AppView.JOURNEY_MAP)} onComplete={(s) => handleMiniGameComplete(s, 'node-4', AppView.MINIGAME_VISUALIZATION)} />} />
               <Route path={VIEW_PATHS[AppView.MINIGAME_ORIENTATION]} element={<Suspense fallback={<div className="h-full flex items-center justify-center"><Loader2 className="w-12 h-12 animate-spin text-emerald-500" /></div>}><OrientationGame3D onExit={() => changeView(AppView.JOURNEY_MAP)} onComplete={(s) => handleMiniGameComplete(s, 'node-5', AppView.MINIGAME_ORIENTATION)} /></Suspense>} />
               <Route path={VIEW_PATHS[AppView.MINIGAME_STROOP]} element={<StroopGame onExit={() => changeView(AppView.JOURNEY_MAP)} onComplete={(s) => handleMiniGameComplete(s, 'node-6', AppView.MINIGAME_STROOP)} />} />

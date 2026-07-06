@@ -9,7 +9,9 @@ import { sfx } from '../services/audioService';
 
 interface Props {
   onExit: () => void;
-  onComplete: (score: number) => void;
+  // payload carries the gamification-free construct measure (cognitiveRaw) and
+  // audit metadata; the on-screen `score` stays gamified for XP/feedback.
+  onComplete: (score: number, payload?: Record<string, unknown>) => void;
 }
 
 const GAME_DURATION = 35;
@@ -25,6 +27,8 @@ const SpeedGame: React.FC<Props> = ({ onExit, onComplete }) => {
   const [targetIndex, setTargetIndex] = useState(0);
   const [feedbackState, setFeedbackState] = useState<{index: number, type: 'correct' | 'wrong'} | null>(null);
   const [correctCount, setCorrectCount] = useState(0);
+  // Scored attempts (correct + wrong), for the accuracy term of the construct measure.
+  const [attempts, setAttempts] = useState(0);
   // Unscored warm-up rounds on the first run; the clock waits for them.
   const [practiceLeft, setPracticeLeft] = useState(PRACTICE_ROUNDS);
   
@@ -103,6 +107,8 @@ const SpeedGame: React.FC<Props> = ({ onExit, onComplete }) => {
           return;
       }
 
+      setAttempts(a => a + 1);
+
       if (isCorrect) {
           sfx.playSuccess();
           reactionTimes.current.push(rt);
@@ -137,10 +143,17 @@ const SpeedGame: React.FC<Props> = ({ onExit, onComplete }) => {
       // Trimmed median: robust to one anticipation or attention lapse.
       const medRT = Math.round(median(cleanReactionTimes(reactionTimes.current, 200, 10000)));
 
+      // Gamification-free construct measure on a 0-100 scale: the theoretical
+      // correct-responses-per-minute implied by the median RT (this is the RT
+      // data the old combo-based score threw away), scaled by accuracy.
+      const accuracyFrac = attempts > 0 ? correctCount / attempts : 0;
+      const throughput = medRT > 0 ? 60000 / medRT : 0;
+      const cognitiveRaw = Math.max(0, Math.min(100, Math.round(throughput * accuracyFrac)));
+
       return (
         <GameResultCard
             title="سرعت ادراکی (A11)"
-            rawScore={normalizedScore}
+            rawScore={cognitiveRaw}
             scoreKey="A11"
             metrics={[
                 { label: 'تعداد صحیح', value: toPersianNum(correctCount) },
@@ -152,13 +165,14 @@ const SpeedGame: React.FC<Props> = ({ onExit, onComplete }) => {
                 setCombo(1);
                 setDifficulty(1);
                 setCorrectCount(0);
+                setAttempts(0);
                 setGrid([]);
                 setFeedbackState(null);
                 setPracticeLeft(0); // retries skip the warm-up
                 reactionTimes.current = [];
                 setGameState('playing');
             }}
-            onComplete={() => onComplete(normalizedScore)}
+            onComplete={() => onComplete(normalizedScore, { cognitiveRaw, durationMs: GAME_DURATION * 1000, trialCount: attempts })}
         />
       );
   }
@@ -187,6 +201,7 @@ const SpeedGame: React.FC<Props> = ({ onExit, onComplete }) => {
             setCombo(1);
             setDifficulty(1);
             setCorrectCount(0);
+            setAttempts(0);
             setGrid([]);
             setFeedbackState(null);
             setPracticeLeft(0); // restarts skip the warm-up

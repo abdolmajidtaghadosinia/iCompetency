@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Calculator, CheckCircle2, Eraser, Timer } from 'lucide-react';
 import { toPersianNum } from '../utils';
 import GameShell from './GameShell';
@@ -8,7 +8,9 @@ import { sfx } from '../services/audioService';
 
 interface Props {
   onExit: () => void;
-  onComplete: (score: number) => void;
+  // payload carries the gamification-free construct measure (cognitiveRaw) and
+  // audit metadata; the on-screen `score` stays gamified for XP/feedback.
+  onComplete: (score: number, payload?: Record<string, unknown>) => void;
 }
 
 const INITIAL_TIME = 300; // 5 Minutes Total
@@ -28,15 +30,30 @@ const MathGame: React.FC<Props> = ({ onExit, onComplete }) => {
   const [totalQuestions, setTotalQuestions] = useState(0);
   const [correctQuestions, setCorrectQuestions] = useState(0);
 
+  // Construct-measure bookkeeping (kept out of the gamified score). The clean
+  // A10 measure is weighted-correct-per-real-minute × accuracy, so it ignores
+  // the streak multiplier and the fact that correct answers extend the clock.
+  const startedAtRef = useRef(0);
+  const finishedAtRef = useRef(0);
+  const correctWeightRef = useRef(0);
+
+  const resetMeasures = () => {
+    startedAtRef.current = 0;
+    finishedAtRef.current = 0;
+    correctWeightRef.current = 0;
+  };
+
   // Timer
   useEffect(() => {
     if (gameState !== 'playing') return;
     if (!question.text) generateQuestion(1);
+    if (startedAtRef.current === 0) startedAtRef.current = Date.now();
 
     const timer = setInterval(() => {
       setTimeLeft(prev => {
         if (prev <= 0) {
           clearInterval(timer);
+          finishedAtRef.current = Date.now();
           setGameState('finished');
           return 0;
         }
@@ -158,7 +175,10 @@ const MathGame: React.FC<Props> = ({ onExit, onComplete }) => {
       
       const points = Math.round(baseScore * speedMultiplier * comboMultiplier);
       setScore(s => s + points);
-      
+      // Weight each correct answer by the level it was solved at, for the
+      // construct measure — harder problems count more, independent of combo.
+      correctWeightRef.current += level;
+
       setStreak(s => s + 1);
       
       let nextLevel = level;
@@ -216,10 +236,19 @@ const MathGame: React.FC<Props> = ({ onExit, onComplete }) => {
 
   if (gameState === 'finished') {
       const accuracy = totalQuestions > 0 ? Math.round((correctQuestions / totalQuestions) * 100) : 0;
+
+      // Gamification-free construct measure: weighted-correct per real minute,
+      // scaled by accuracy, on a 0-100 scale. Uses wall-clock elapsed so the
+      // clock-extending time bonus can't inflate it.
+      const elapsedMs = finishedAtRef.current > startedAtRef.current ? finishedAtRef.current - startedAtRef.current : 0;
+      const elapsedMin = elapsedMs > 0 ? elapsedMs / 60000 : INITIAL_TIME / 60;
+      const accuracyFrac = totalQuestions > 0 ? correctQuestions / totalQuestions : 0;
+      const cognitiveRaw = Math.max(0, Math.min(100, Math.round((correctWeightRef.current / elapsedMin) * accuracyFrac)));
+
       return (
-        <GameResultCard 
+        <GameResultCard
             title="هوش محاسباتی (A10)"
-            rawScore={score}
+            rawScore={cognitiveRaw}
             scoreKey="A10"
             metrics={[
                 { label: 'دقت', value: toPersianNum(accuracy) + '%' },
@@ -232,10 +261,11 @@ const MathGame: React.FC<Props> = ({ onExit, onComplete }) => {
                 setStreak(0);
                 setTotalQuestions(0);
                 setCorrectQuestions(0);
+                resetMeasures();
                 generateQuestion(1);
                 setGameState('playing');
             }}
-            onComplete={() => onComplete(score)}
+            onComplete={() => onComplete(score, { cognitiveRaw, durationMs: elapsedMs, trialCount: totalQuestions })}
         />
       );
   }
@@ -257,6 +287,9 @@ const MathGame: React.FC<Props> = ({ onExit, onComplete }) => {
             setScore(0);
             setLevel(1);
             setStreak(0);
+            setTotalQuestions(0);
+            setCorrectQuestions(0);
+            resetMeasures();
             generateQuestion(1);
             setGameState('playing');
         }}
