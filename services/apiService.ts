@@ -209,6 +209,23 @@ export const submitBigFive = (scores: NonNullable<UserProfile['bigFive']>) => ap
 
 export const getLeaderboard = (limit = 20) => apiRequest<LeaderboardResponse>(`/leaderboard?limit=${limit}`);
 
+export interface ServerJourneyNode {
+  id: string;
+  gameView: string;
+  title: string;
+  xpReward: number;
+  coinReward: number;
+}
+
+export interface JourneyNodesResponse {
+  order: string[];
+  nodes: ServerJourneyNode[];
+}
+
+// Canonical node order/titles/rewards live on the backend (journey_nodes()
+// in backend/logic/nodes.php); the frontend only keeps display metadata.
+export const getJourneyNodes = () => apiRequest<JourneyNodesResponse>('/game/nodes');
+
 export const aiGenerate = <T>(task: string, params: Record<string, unknown> = {}) => apiRequest<T>('/ai/generate', {
   method: 'POST',
   body: JSON.stringify({ task, params }),

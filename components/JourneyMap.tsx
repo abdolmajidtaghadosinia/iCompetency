@@ -6,6 +6,7 @@ import {
   Check, Lock, MapPin, Search, Cpu, Server, Users, X, PlayCircle
 } from 'lucide-react';
 import { toPersianNum } from '../utils';
+import { getJourneyNodes, ServerJourneyNode } from '../services/apiService';
 
 interface Props {
   unlockedNodes: string[];
@@ -31,7 +32,7 @@ interface ExtendedJourneyNode extends JourneyNode {
 }
 
 // Updated coordinates for a smoother Sine Wave flow from Right (Start) to Left (End)
-const nodesList: ExtendedJourneyNode[] = [
+const staticNodes: ExtendedJourneyNode[] = [
   {
     id: 'node-1',
     view: AppView.MINIGAME_MEMORY,
@@ -146,6 +147,23 @@ const JourneyMap: React.FC<Props> = ({ unlockedNodes, completedNodes, onSelectNo
   const [hoveredNode, setHoveredNode] = useState<string | null>(null);
   const [focusedNode, setFocusedNode] = useState<ExtendedJourneyNode | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  // Canonical titles/rewards come from GET /game/nodes; staticNodes keeps the
+  // display-only metadata (icons, coordinates, descriptions) and doubles as
+  // the offline fallback until the request lands.
+  const [serverNodes, setServerNodes] = useState<Record<string, ServerJourneyNode> | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    getJourneyNodes()
+      .then(r => { if (!cancelled) setServerNodes(Object.fromEntries(r.nodes.map(n => [n.id, n]))); })
+      .catch(() => { /* offline or older backend: keep the static copy */ });
+    return () => { cancelled = true; };
+  }, []);
+
+  const nodesList = useMemo(() => staticNodes.map(n => {
+    const s = serverNodes?.[n.id];
+    return s ? { ...n, title: s.title, xpReward: s.xpReward, coinReward: s.coinReward } : n;
+  }), [serverNodes]);
 
   const activeNodeId = useMemo(() => {
     const unlocked = nodesList.filter(n => unlockedNodes.includes(n.id));

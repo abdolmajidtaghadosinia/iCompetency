@@ -84,15 +84,19 @@ const CynefinGame: React.FC<Props> = ({ onExit, onComplete }) => {
   };
 
   if (gameState === 'finished' && data) {
+      // The AI may return more or fewer than 5 scenarios, so the final score
+      // is the correct-answer ratio on a fixed 0-100 scale rather than the
+      // running 20-points-per-hit HUD score.
+      const finalScore = Math.round((correctCount / Math.max(1, data.scenarios.length)) * 100);
       return (
         <GameResultCard
             title="چارچوب Cynefin"
-            rawScore={score}
+            rawScore={finalScore}
             metrics={[
                 { label: 'تشخیص صحیح', value: `${toPersianNum(correctCount)}/${toPersianNum(data.scenarios.length)}` },
                 { label: 'دامنه‌های سنجیده', value: toPersianNum(data.scenarios.length) },
             ]}
-            onComplete={() => onComplete(score)}
+            onComplete={() => onComplete(finalScore)}
         />
       );
   }

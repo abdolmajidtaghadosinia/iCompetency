@@ -68,8 +68,8 @@ All 14+ mini-games follow the same shape: **intro → play → score → `onComp
 
 ## Known gaps
 
-- `GET /game/nodes` exists on the backend but nothing in the frontend calls it; `JourneyMap.tsx` hardcodes its own copy of the node list instead.
-- The methodology/scenario games (`FiveWhysGame`, `SwotGame`, `CynefinGame`, `RoleplayGame`, `FactFindingGame`, `BigFiveGame`) still hand-roll their own intro/exit/result chrome instead of `GameShell`/`GameResultCard`; the cognitive games are all on the shared shell.
+- `JourneyMap.tsx` fetches canonical node titles/rewards from `GET /game/nodes` and merges them into its static display list (icons, coordinates, descriptions); the static list is also the offline fallback. Reward changes belong in `backend/logic/nodes.php`; new nodes still need both sides.
+- `FactFindingGame`, `RoleplayGame`, and `BigFiveGame` keep custom result/report screens on purpose (narrative feedback, truth reveal); everything else is on `GameShell`/`GameResultCard`. `GameResultCard` without `scoreKey` renders a raw 0-100 gauge for games without T-score norms.
 - Reaction-time games share `cleanReactionTimes`/`median` from `utils/scoring.ts` — use them (not raw means) for any new RT-based metric.
 
 ## Commit discipline
