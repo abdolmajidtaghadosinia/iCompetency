@@ -8,10 +8,10 @@ import {
 } from 'lucide-react';
 
 // Methodology assessment display config (keys match the server payload subjects).
-const METH_CONFIG: Record<string, { title: string; icon: any; color: string; bg: string }> = {
-  '5whys':   { title: 'ریشه‌یابی (۵ چرا)',            icon: Search, color: 'text-cyan-600 dark:text-cyan-400',       bg: 'bg-cyan-500' },
-  'swot':    { title: 'تحلیل استراتژیک (SWOT)',        icon: Target, color: 'text-fuchsia-600 dark:text-fuchsia-400', bg: 'bg-fuchsia-500' },
-  'cynefin': { title: 'تصمیم‌گیری زمینه‌مند (Cynefin)', icon: Brain,  color: 'text-violet-600 dark:text-violet-400',   bg: 'bg-violet-500' },
+const METH_CONFIG: Record<string, { title: string; icon: any; color: string; bg: string; hex: string }> = {
+  '5whys':   { title: 'ریشه‌یابی (۵ چرا)',            icon: Search, color: 'text-cyan-600 dark:text-cyan-400',       bg: 'bg-cyan-500',    hex: '#06b6d4' },
+  'swot':    { title: 'تحلیل استراتژیک (SWOT)',        icon: Target, color: 'text-fuchsia-600 dark:text-fuchsia-400', bg: 'bg-fuchsia-500', hex: '#d946ef' },
+  'cynefin': { title: 'تصمیم‌گیری زمینه‌مند (Cynefin)', icon: Brain,  color: 'text-violet-600 dark:text-violet-400',   bg: 'bg-violet-500',  hex: '#8b5cf6' },
 };
 const METH_ORDER = ['5whys', 'swot', 'cynefin'];
 const DIM_LABELS: Record<string, string> = {
@@ -126,6 +126,12 @@ const VerifiedResume: React.FC<Props> = ({ user, isDarkMode = false }) => {
         cognitiveSkills: cognitiveSkills.map(s => ({ code: s.code, title: s.title, score: s.score })),
         bigFiveData: bigFiveData.map(t => ({ title: t.title, score: t.score })),
         careerProfiles: careerProfiles.map(p => ({ title: p.title, fitScore: p.fitScore })),
+        methodology: methItems.map(m => ({
+          title: m.cfg.title,
+          score: m.score,
+          color: m.cfg.hex,
+          dims: Object.entries(m.dimensions ?? {}).map(([k, v]) => ({ label: DIM_LABELS[k] ?? k, value: v })),
+        })),
         date: currentDate,
       });
     } catch (err) {
@@ -187,7 +193,102 @@ const VerifiedResume: React.FC<Props> = ({ user, isDarkMode = false }) => {
                     <div className="text-sm font-mono text-slate-600">Date: {currentDate}</div>
                 </div>
             </div>
-            {/* ... Print content ... */}
+
+            {/* Candidate */}
+            <div className="mb-6">
+                <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">دارنده کارنامه</div>
+                <div className="text-2xl font-black text-slate-900">{user.name}</div>
+                <div className="text-sm font-bold text-slate-500">{user.role} — {user.level}</div>
+            </div>
+
+            {/* Cognitive skills */}
+            <section className="mb-7">
+                <h2 className="text-lg font-black text-slate-900 mb-3 border-b-2 border-slate-200 pb-1.5">شاخص‌های شناختی (مدل رضی)</h2>
+                <div className="grid grid-cols-2 gap-x-8 gap-y-2.5">
+                    {cognitiveSkills.map((s, i) => (
+                        <div key={i} className="flex items-center gap-3">
+                            <span className="text-[9px] font-mono text-slate-400 w-7 shrink-0">{s.code}</span>
+                            <span className="text-xs font-bold text-slate-800 flex-1 truncate">{s.title}</span>
+                            <div className="w-24 h-2 bg-slate-200 rounded-full overflow-hidden shrink-0">
+                                <div className={`h-full ${s.bg}`} style={{ width: `${s.score}%` }} />
+                            </div>
+                            <span className="text-xs font-black text-slate-900 w-7 text-left shrink-0">{toPersianNum(s.score)}</span>
+                        </div>
+                    ))}
+                </div>
+            </section>
+
+            {/* Methodology assessments */}
+            {methItems.length > 0 && (
+                <section className="mb-7">
+                    <h2 className="text-lg font-black text-slate-900 mb-3 border-b-2 border-slate-200 pb-1.5">آزمون‌های حل مسئله</h2>
+                    <div className="grid grid-cols-3 gap-4">
+                        {methItems.map(item => (
+                            <div key={item.key} className="border border-slate-200 rounded-lg p-3">
+                                <div className="flex justify-between items-center mb-2.5">
+                                    <span className="text-xs font-black text-slate-800 leading-tight">{item.cfg.title}</span>
+                                    <span className="text-lg font-black text-slate-900 shrink-0">{toPersianNum(item.score)}</span>
+                                </div>
+                                <div className="space-y-1.5">
+                                    {Object.entries(item.dimensions ?? {}).map(([dk, dv]) => (
+                                        <div key={dk}>
+                                            <div className="flex justify-between text-[9px] font-bold text-slate-600 mb-0.5">
+                                                <span>{DIM_LABELS[dk] ?? dk}</span><span>{toPersianNum(dv)}</span>
+                                            </div>
+                                            <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                                                <div className={`h-full ${item.cfg.bg}`} style={{ width: `${Math.max(0, Math.min(100, dv))}%` }} />
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </section>
+            )}
+
+            {/* Big Five */}
+            {bigFiveData.length > 0 && (
+                <section className="mb-7">
+                    <h2 className="text-lg font-black text-slate-900 mb-3 border-b-2 border-slate-200 pb-1.5">پروفایل شخصیت (Big Five / OCEAN)</h2>
+                    <div className="grid grid-cols-5 gap-3">
+                        {bigFiveData.map((t, i) => (
+                            <div key={i} className="border border-slate-200 rounded-lg p-3 text-center">
+                                <div className="text-2xl font-black text-slate-900">{toPersianNum(t.score)}</div>
+                                <div className="text-[10px] font-bold text-slate-500 leading-tight mt-1">{t.title.split('(')[0].trim()}</div>
+                            </div>
+                        ))}
+                    </div>
+                </section>
+            )}
+
+            {/* Career fit */}
+            <section className="mb-7">
+                <h2 className="text-lg font-black text-slate-900 mb-3 border-b-2 border-slate-200 pb-1.5">تحلیل تناسب شغلی</h2>
+                <div className="bg-slate-100 rounded-lg p-4 mb-3 flex items-center justify-between">
+                    <div>
+                        <div className="text-[10px] font-bold text-slate-400 uppercase">پیشنهاد برتر</div>
+                        <div className="text-lg font-black text-slate-900">{bestFit.title}</div>
+                        <div className="text-xs text-slate-500">{bestFit.description}</div>
+                    </div>
+                    <div className="text-3xl font-black text-emerald-600 shrink-0">{toPersianNum(bestFit.fitScore)}%</div>
+                </div>
+                <div className="grid grid-cols-3 gap-x-8 gap-y-2">
+                    {careerProfiles.slice(1, 4).map((p, i) => (
+                        <div key={i} className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-slate-700 flex-1 truncate">{p.title}</span>
+                            <div className="w-16 h-2 bg-slate-200 rounded-full overflow-hidden shrink-0"><div className="h-full bg-slate-400" style={{ width: `${p.fitScore}%` }} /></div>
+                            <span className="text-[10px] font-mono text-slate-500 w-7 text-left shrink-0">{toPersianNum(p.fitScore)}%</span>
+                        </div>
+                    ))}
+                </div>
+            </section>
+
+            {/* Footer */}
+            <div className="mt-auto pt-5 border-t-2 border-slate-200 flex justify-between items-center text-xs text-slate-500">
+                <span>iCompetency — سامانه جامع سنجش صلاحیت حرفه‌ای</span>
+                <span className="font-mono">شناسه راستی‌آزمایی: {verificationHash}</span>
+            </div>
         </div>
     </div>
 

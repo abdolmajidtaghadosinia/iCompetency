@@ -8,6 +8,7 @@ interface ResumeData {
   cognitiveSkills: { code: string; title: string; score: number }[];
   bigFiveData: { title: string; score: number }[];
   careerProfiles: { title: string; fitScore: number }[];
+  methodology?: { title: string; score: number; color: string; dims: { label: string; value: number }[] }[];
   date: string;
 }
 
@@ -179,6 +180,9 @@ export async function generateResumeImage(data: ResumeData): Promise<Blob> {
   }
 
   // === CAREER FIT SECTION ===
+  // Tracks the bottom of the last drawn section so the methodology block can
+  // flow below it regardless of which optional sections are present.
+  let careerBottomY = barStartY + 7 * barGap + 120;
   if (data.careerProfiles.length > 0) {
     const cfY = data.bigFiveData.length > 0 ? barStartY + 7 * barGap + 220 : barStartY + 7 * barGap + 60;
 
@@ -238,6 +242,64 @@ export async function generateResumeImage(data: ResumeData): Promise<Blob> {
       ctx.font = 'bold 14px monospace';
       ctx.textAlign = 'left';
       ctx.fillText(`${profile.fitScore}%`, barX + 310, py + 20);
+    });
+    careerBottomY = otherStartY + 3 * 42 + 10;
+  }
+
+  // === METHODOLOGY SECTION ===
+  if (data.methodology && data.methodology.length > 0) {
+    const mY = careerBottomY + 30;
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#e2e8f0';
+    ctx.font = 'bold 28px Tahoma, sans-serif';
+    ctx.fillText('آزمون‌های حل مسئله', WIDTH - 60, mY);
+
+    const cardGap = 20;
+    const cardW = (WIDTH - 120 - 2 * cardGap) / 3;
+    data.methodology.slice(0, 3).forEach((m, i) => {
+      const cx = 60 + i * (cardW + cardGap);
+      const cy = mY + 25;
+      const cardH = 62 + m.dims.length * 30;
+
+      roundRect(cx, cy, cardW, cardH, 16);
+      ctx.fillStyle = 'rgba(255,255,255,0.05)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      // Title (RTL) + overall score
+      ctx.fillStyle = '#e2e8f0';
+      ctx.font = 'bold 15px Tahoma, sans-serif';
+      ctx.textAlign = 'right';
+      ctx.fillText(m.title, cx + cardW - 16, cy + 30);
+      ctx.fillStyle = m.color;
+      ctx.font = 'bold 30px monospace';
+      ctx.textAlign = 'left';
+      ctx.fillText(String(m.score), cx + 16, cy + 36);
+
+      // Dimension mini-bars
+      m.dims.forEach((d, j) => {
+        const dy = cy + 62 + j * 30;
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = 'bold 12px Tahoma, sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillText(d.label, cx + cardW - 16, dy);
+        ctx.fillStyle = '#64748b';
+        ctx.font = 'bold 12px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText(String(d.value), cx + 16, dy);
+
+        roundRect(cx + 16, dy + 6, cardW - 32, 6, 3);
+        ctx.fillStyle = 'rgba(255,255,255,0.08)';
+        ctx.fill();
+        const fw = Math.max(0, (d.value / 100) * (cardW - 32));
+        if (fw > 0) {
+          roundRect(cx + 16, dy + 6, fw, 6, 3);
+          ctx.fillStyle = m.color;
+          ctx.fill();
+        }
+      });
     });
   }
 

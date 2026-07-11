@@ -111,10 +111,15 @@ body {
     overflow: visible !important; 
     position: static !important;
   }
-  .print-container-wrapper { 
-    display: block !important; 
+  .print-container-wrapper {
+    display: block !important;
     height: auto !important;
     overflow: visible !important;
     position: static !important;
+  }
+  /* Ensure bar/accent background colors actually render on paper. */
+  .print-container-wrapper * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 }
