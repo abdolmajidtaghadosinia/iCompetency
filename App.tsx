@@ -379,9 +379,9 @@ function App() {
               <Route path={VIEW_PATHS[AppView.MINIGAME_ROLEPLAY]} element={<RoleplayGame onComplete={(s) => handleMiniGameComplete(s, '', AppView.MINIGAME_ROLEPLAY)} />} />
 
               {/* --- Methodology Games --- */}
-              <Route path={VIEW_PATHS[AppView.MINIGAME_5WHYS]} element={<FiveWhysGame onExit={() => changeView(AppView.MINIGAME_HUB)} onComplete={(s) => handleMiniGameComplete(s, '', AppView.MINIGAME_5WHYS)} />} />
-              <Route path={VIEW_PATHS[AppView.MINIGAME_SWOT]} element={<SwotGame onExit={() => changeView(AppView.MINIGAME_HUB)} onComplete={(s) => handleMiniGameComplete(s, '', AppView.MINIGAME_SWOT)} />} />
-              <Route path={VIEW_PATHS[AppView.MINIGAME_CYNEFIN]} element={<CynefinGame onExit={() => changeView(AppView.MINIGAME_HUB)} onComplete={(s) => handleMiniGameComplete(s, '', AppView.MINIGAME_CYNEFIN)} />} />
+              <Route path={VIEW_PATHS[AppView.MINIGAME_5WHYS]} element={<FiveWhysGame onExit={() => changeView(AppView.MINIGAME_HUB)} onComplete={(s, payload) => handleMiniGameComplete(s, '', AppView.MINIGAME_5WHYS, payload)} />} />
+              <Route path={VIEW_PATHS[AppView.MINIGAME_SWOT]} element={<SwotGame onExit={() => changeView(AppView.MINIGAME_HUB)} onComplete={(s, payload) => handleMiniGameComplete(s, '', AppView.MINIGAME_SWOT, payload)} />} />
+              <Route path={VIEW_PATHS[AppView.MINIGAME_CYNEFIN]} element={<CynefinGame onExit={() => changeView(AppView.MINIGAME_HUB)} onComplete={(s, payload) => handleMiniGameComplete(s, '', AppView.MINIGAME_CYNEFIN, payload)} />} />
 
               <Route path="*" element={<Navigate to={VIEW_PATHS[AppView.DASHBOARD]} replace />} />
             </Routes>

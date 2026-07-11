@@ -1,12 +1,25 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { SwotData } from '../types';
 import { generateSwotData } from '../services/geminiService';
 import { Loader2, Building2, CheckCircle2, XCircle, AlertTriangle, Target } from 'lucide-react';
 import GameShell from './GameShell';
-import GameResultCard from './GameResultCard';
+import MethodologyResult, { RubricDimension } from './MethodologyResult';
 import { toPersianNum } from '../utils';
 import { sfx } from '../services/audioService';
+
+type SwotCat = 'S' | 'W' | 'O' | 'T';
+const internalAxis = (c: SwotCat) => c === 'S' || c === 'W'; // internal = strengths/weaknesses
+const positiveAxis = (c: SwotCat) => c === 'S' || c === 'O'; // positive = strengths/opportunities
+
+// Reject malformed AI data so a bad generation never becomes an unfair score.
+const isValidSwot = (d: SwotData | null): boolean =>
+  !!d && Array.isArray(d.items) && d.items.length > 0 &&
+  d.items.every(i => !!i && typeof i.text === 'string' && i.text.trim().length > 0) &&
+  !!d.strategyPhase && Array.isArray(d.strategyPhase.options) &&
+  d.strategyPhase.options.length >= 2 && d.strategyPhase.options.filter(o => o.isCorrect).length === 1;
+
+interface SortEntry { correctCat: SwotCat; picked: SwotCat; exact: boolean; ieCorrect: boolean; pnCorrect: boolean; }
 
 function normalizeCategory(raw: string): 'S' | 'W' | 'O' | 'T' {
   const val = raw.trim().toUpperCase();
@@ -28,7 +41,7 @@ function normalizeCategory(raw: string): 'S' | 'W' | 'O' | 'T' {
 
 interface Props {
   onExit: () => void;
-  onComplete: (score: number) => void;
+  onComplete: (score: number, payload?: Record<string, unknown>) => void;
 }
 
 const SwotGame: React.FC<Props> = ({ onExit, onComplete }) => {
@@ -39,12 +52,16 @@ const SwotGame: React.FC<Props> = ({ onExit, onComplete }) => {
 
   // Phase 1 State
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [score, setScore] = useState(0);
   const [sortCorrect, setSortCorrect] = useState(0);
   const [feedback, setFeedback] = useState<{correct: boolean, msg: string} | null>(null);
 
   // Phase 2 State
   const [strategyResult, setStrategyResult] = useState<{correct: boolean, feedback: string} | null>(null);
+
+  // Per-item classification log for the rubric subscores (exact category plus
+  // the two discrimination axes: internal/external and positive/negative).
+  const sortLog = useRef<SortEntry[]>([]);
+  const strategyPick = useRef<number | null>(null);
 
   // The AI case data loads in the background while the intro modal is up.
   const loadData = () => {
@@ -68,17 +85,23 @@ const SwotGame: React.FC<Props> = ({ onExit, onComplete }) => {
     if (!data || feedback) return;
 
     const item = data.items[currentIndex];
-    const isCorrect = normalizeCategory(item.category) === category;
+    const correctCat = normalizeCategory(item.category);
+    const isCorrect = correctCat === category;
+
+    sortLog.current.push({
+      correctCat, picked: category, exact: isCorrect,
+      ieCorrect: internalAxis(category) === internalAxis(correctCat),
+      pnCorrect: positiveAxis(category) === positiveAxis(correctCat),
+    });
 
     const categoryLabels: Record<string, string> = { S: 'نقاط قوت (Strengths)', W: 'نقاط ضعف (Weaknesses)', O: 'فرصت‌ها (Opportunities)', T: 'تهدیدها (Threats)' };
     setFeedback({
         correct: isCorrect,
-        msg: isCorrect ? "دقیقاً!" : `اشتباه. این مورد ${categoryLabels[normalizeCategory(item.category)] || item.category} است زیرا: ${item.reason}`
+        msg: isCorrect ? "دقیقاً!" : `اشتباه. این مورد ${categoryLabels[correctCat] || item.category} است زیرا: ${item.reason}`
     });
 
     if (isCorrect) {
         sfx.playSuccess();
-        setScore(s => s + 10);
         setSortCorrect(c => c + 1);
     } else {
         sfx.playError();
@@ -98,6 +121,7 @@ const SwotGame: React.FC<Props> = ({ onExit, onComplete }) => {
       if (!data || strategyResult) return;
 
       const opt = data.strategyPhase.options[index];
+      strategyPick.current = index;
       setStrategyResult({
           correct: opt.isCorrect,
           feedback: opt.feedback
@@ -105,7 +129,6 @@ const SwotGame: React.FC<Props> = ({ onExit, onComplete }) => {
 
       if (opt.isCorrect) {
           sfx.playSuccess();
-          setScore(s => s + 50); // Big bonus for strategy
       } else {
           sfx.playError();
       }
@@ -115,24 +138,63 @@ const SwotGame: React.FC<Props> = ({ onExit, onComplete }) => {
       }, 3000);
   };
 
-  // Canned offline content must not be recorded as a real assessment result.
-  const isFallback = data?._fallback === true;
+  // Canned offline OR malformed content must not be recorded as a real result.
+  const isFallback = data?._fallback === true || (!!data && !isValidSwot(data));
+
+  // Live score on the SAME 0-100 scale the final result uses, so the HUD number
+  // never contradicts the recorded score.
+  const itemCount = Math.max(1, data?.items.length ?? 1);
+  const liveScore = Math.round((sortCorrect / itemCount) * 50) + (strategyResult?.correct ? 50 : 0);
 
   if (gameState === 'finished' && data) {
-      // AI generates 8-10 items, so the raw point total has a variable maximum.
-      // Normalize: sorting is worth 50 (proportional to items) and picking the
-      // right strategy is worth 50, for a fixed 0-100 scale.
-      const normalizedScore = Math.round((sortCorrect / Math.max(1, data.items.length)) * 50)
-        + (strategyResult?.correct ? 50 : 0);
+      const total = Math.max(1, sortLog.current.length);
+      const classAcc = (sortLog.current.filter(e => e.exact).length / total) * 100;
+      const ieAcc = (sortLog.current.filter(e => e.ieCorrect).length / total) * 100;
+      const pnAcc = (sortLog.current.filter(e => e.pnCorrect).length / total) * 100;
+      const strategyAlignment = strategyResult?.correct ? 100 : 0;
+      // Headline: exact classification (50) + strategy alignment (50).
+      const finalScore = Math.round(classAcc * 0.5 + strategyAlignment * 0.5);
+
+      const dimensions: RubricDimension[] = [
+        { label: 'دقت طبقه‌بندی', value: classAcc },
+        { label: 'تفکیک داخلی/خارجی', value: ieAcc },
+        { label: 'تفکیک مثبت/منفی', value: pnAcc },
+        { label: 'هم‌راستایی استراتژی', value: strategyAlignment },
+      ];
+
+      const strength = classAcc >= 80 ? 'گزاره‌ها را با دقت بالا طبقه‌بندی می‌کنید.'
+        : strategyAlignment === 100 ? 'از تحلیل به استراتژی درست می‌رسید.'
+        : ieAcc >= pnAcc ? 'تفکیک عوامل داخلی و خارجی را خوب انجام می‌دهید.'
+        : 'بار مثبت و منفی عوامل را خوب تشخیص می‌دهید.';
+      const blindSpot = (ieAcc < pnAcc && ieAcc < 100) ? 'گاهی عوامل داخلی (قوت/ضعف) و خارجی (فرصت/تهدید) را جابه‌جا می‌کنید.'
+        : (pnAcc < 100 && pnAcc <= ieAcc) ? 'گاهی بار مثبت (قوت/فرصت) و منفی (ضعف/تهدید) گزاره‌ها را اشتباه می‌گیرید.'
+        : strategyAlignment === 0 ? 'طبقه‌بندی خوب بود اما استراتژی منتخب با تحلیل هم‌راستا نبود.'
+        : 'عملکرد متوازن؛ فقط چند خطای جزئی در طبقه‌بندی.';
+
+      const payload = {
+        subject: 'swot',
+        dimensions: { classificationAccuracy: Math.round(classAcc), internalExternalDiscrimination: Math.round(ieAcc), positiveNegativeDiscrimination: Math.round(pnAcc), strategyAlignment },
+        items: sortLog.current,
+        strategyPick: strategyPick.current,
+        usedFallback: isFallback,
+      };
+
+      const reset = () => {
+        sortLog.current = []; strategyPick.current = null;
+        setCurrentIndex(0); setSortCorrect(0); setFeedback(null);
+        setStrategyResult(null); setPhase('sorting'); setGameState('playing');
+      };
+
       return (
-        <GameResultCard
+        <MethodologyResult
             title="تحلیل استراتژیک SWOT"
-            rawScore={normalizedScore}
-            metrics={[
-                { label: 'طبقه‌بندی صحیح', value: `${toPersianNum(sortCorrect)}/${toPersianNum(data.items.length)}` },
-                { label: 'انتخاب استراتژی', value: strategyResult?.correct ? 'صحیح' : 'ناموفق' },
-            ]}
-            onComplete={() => isFallback ? onExit() : onComplete(normalizedScore)}
+            subtitle="طبقه‌بندی و تدوین استراتژی"
+            score={finalScore}
+            dimensions={dimensions}
+            strength={strength}
+            blindSpot={blindSpot}
+            onRetry={reset}
+            onComplete={() => isFallback ? onExit() : onComplete(finalScore, payload)}
         />
       );
   }
@@ -149,7 +211,7 @@ const SwotGame: React.FC<Props> = ({ onExit, onComplete }) => {
             'فاز ۲: با توجه به تحلیل، استراتژی درست را انتخاب کنید (۵۰ امتیاز).',
         ]}
         icon={<Target />}
-        stats={{ score }}
+        stats={{ score: liveScore }}
         onExit={onExit}
         gameState={gameState}
         setGameState={setGameState}

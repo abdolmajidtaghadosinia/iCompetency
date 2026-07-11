@@ -1,17 +1,26 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { FiveWhysData } from '../types';
 import { generateFiveWhysData, validateTextAnswer } from '../services/geminiService';
 import { Loader2, AlertTriangle, XCircle, Search, Send, HelpCircle, ArrowDown } from 'lucide-react';
 import GameShell from './GameShell';
-import GameResultCard from './GameResultCard';
+import MethodologyResult, { RubricDimension } from './MethodologyResult';
 import { toPersianNum } from '../utils';
 import { sfx } from '../services/audioService';
 
 interface Props {
   onExit: () => void;
-  onComplete: (score: number) => void;
+  onComplete: (score: number, payload?: Record<string, unknown>) => void;
 }
+
+// Reject malformed AI data so a bad generation never becomes an unfair score.
+const isValidFiveWhys = (d: FiveWhysData | null): boolean =>
+  !!d && typeof d.problemStatement === 'string' && d.problemStatement.trim().length > 0 &&
+  Array.isArray(d.levels) && d.levels.length >= 1 &&
+  d.levels.every(l => !!l && typeof l.question === 'string' && l.question.trim().length > 0 &&
+    typeof l.idealAnswer === 'string' && l.idealAnswer.trim().length > 0);
+
+interface LevelLog { level: number; similarity: number; wrongCount: number; timeMs: number; }
 
 const FiveWhysGame: React.FC<Props> = ({ onExit, onComplete }) => {
   const [gameState, setGameState] = useState<'intro' | 'playing' | 'paused' | 'finished'>('intro');
@@ -27,6 +36,19 @@ const FiveWhysGame: React.FC<Props> = ({ onExit, onComplete }) => {
   // rabbitHoleTime > 0 means the player took a wrong branch and is waiting
   // out the time penalty.
   const [rabbitHoleTime, setRabbitHoleTime] = useState(0);
+
+  // Rubric signals: per-level solve quality (grader similarity), how many wrong
+  // branches before solving, and time spent — captured for subscores + payload.
+  const levelLogs = useRef<LevelLog[]>([]);
+  const levelStart = useRef<number>(Date.now());
+  const levelWrongs = useRef<number>(0);
+
+  // A fresh level resets its wrong-count and timer (rabbit-hole re-entries stay
+  // on the same level, so their wrongs accumulate until it is solved).
+  useEffect(() => {
+    levelStart.current = Date.now();
+    levelWrongs.current = 0;
+  }, [currentLevel]);
 
   // The AI case file loads in the background while the intro modal is up.
   const loadData = () => {
@@ -89,38 +111,87 @@ const FiveWhysGame: React.FC<Props> = ({ onExit, onComplete }) => {
           return;
       }
 
+      const lastLevel = data.levels.length - 1;
       if (result.isCorrect) {
+          levelLogs.current.push({
+            level: currentLevel,
+            similarity: typeof result.similarity === 'number' ? result.similarity : 0,
+            wrongCount: levelWrongs.current,
+            timeMs: Date.now() - levelStart.current,
+          });
           setScore(s => s + 20);
-          if (currentLevel < 4) {
+          if (currentLevel < lastLevel) {
               sfx.playSuccess();
               setCurrentLevel(l => l + 1);
               setUserAnswer('');
               setFeedback(''); // Clear feedback for next level
           } else {
+              sfx.playSuccess();
               setGameState('finished');
           }
       } else {
           // Enter Rabbit Hole
           sfx.playError();
+          levelWrongs.current += 1;
           setFeedback(result.feedback || "این علت اصلی نیست. شما وارد مسیر فرعی شدید.");
           setScore(s => Math.max(0, s - 5));
           setRabbitHoleTime(5); // 5 seconds penalty
       }
   };
 
-  // Canned offline content must not be recorded as a real assessment result.
-  const isFallback = data?._fallback === true;
+  // Canned offline OR malformed content must not be recorded as a real result.
+  const isFallback = data?._fallback === true || (!!data && !isValidFiveWhys(data));
+  const levelCount = data?.levels.length ?? 5;
 
   if (gameState === 'finished' && data) {
+    const logs = levelLogs.current;
+    const n = Math.max(1, logs.length);
+    // Precision: how close each accepted answer was to an ideal cause (grader
+    // similarity). Directness: share of levels solved without a wrong branch —
+    // a clean causal chain vs. flailing through symptoms.
+    const precision = logs.reduce((s, l) => s + Math.max(0, Math.min(100, l.similarity)), 0) / n;
+    const firstTry = logs.filter(l => l.wrongCount === 0).length;
+    const directness = (firstTry / n) * 100;
+    const totalWrong = logs.reduce((s, l) => s + l.wrongCount, 0);
+    const finalScore = Math.round(precision * 0.5 + directness * 0.5);
+
+    const dimensions: RubricDimension[] = [
+      { label: 'دقت علّی (تطابق با ریشه)', value: precision },
+      { label: 'مسیر مستقیم (بدون انحراف)', value: directness },
+    ];
+    const strength = directness >= precision
+      ? 'زنجیره علت را مستقیم و بدون انحراف به سمت ریشه می‌سازید.'
+      : 'پاسخ‌های شما از نظر معنایی به علت ریشه‌ای نزدیک است.';
+    const blindSpot = totalWrong === 0
+      ? 'برای رشد بیشتر، عمق و دقت بیشتری به علت‌های ریشه‌ای بدهید.'
+      : directness < 60
+      ? 'گاهی نشانه (symptom) را به‌جای علت (cause) دنبال می‌کنید و وارد مسیر فرعی می‌شوید.'
+      : 'در چند سطح، پیش از رسیدن به علت درست، مسیر فرعی رفتید.';
+
+    const payload = {
+      subject: '5whys',
+      dimensions: { precision: Math.round(precision), directness: Math.round(directness) },
+      levels: logs,
+      totalWrong,
+      usedFallback: isFallback,
+    };
+
+    const reset = () => {
+      levelLogs.current = []; levelWrongs.current = 0; levelStart.current = Date.now();
+      setCurrentLevel(0); setScore(0); setUserAnswer(''); setFeedback('');
+      setRabbitHoleTime(0); setGameState('playing');
+    };
+
     return (
-      <GameResultCard
-          title="متدولوژی ۵ چرا"
-          rawScore={score}
-          metrics={[
-              { label: 'زنجیره علت‌ها', value: `${toPersianNum(5)}/${toPersianNum(5)}` },
-              { label: 'ریشه مشکل', value: 'کشف شد' },
-          ]}
-          onComplete={() => isFallback ? onExit() : onComplete(score)}
+      <MethodologyResult
+        title="متدولوژی ۵ چرا"
+        subtitle="ریشه‌یابی علّی"
+        score={finalScore}
+        dimensions={dimensions}
+        strength={strength}
+        blindSpot={blindSpot}
+        onRetry={reset}
+        onComplete={() => isFallback ? onExit() : onComplete(finalScore, payload)}
       />
     );
   }
@@ -134,7 +205,7 @@ const FiveWhysGame: React.FC<Props> = ({ onExit, onComplete }) => {
         description="با پرسیدن مکرر «چرا» زنجیره علت و معلول را دنبال کنید تا به ریشه واقعی مشکل برسید. پاسخ‌های شما توسط هوش مصنوعی تحلیل معنایی می‌شود."
         instructions={[
             'صورت مسئله را بخوانید و علت مستقیم آن را بنویسید.',
-            'هر پاسخ درست، یک سطح عمیق‌تر می‌برد؛ ۵ سطح تا ریشه فاصله دارید.',
+            'هر پاسخ درست، یک سطح عمیق‌تر می‌برد تا به ریشه برسید.',
             'پاسخ سطحی یا انحرافی شما را وارد «مسیر فرعی» با جریمه زمانی می‌کند.',
         ]}
         icon={<Search />}
@@ -171,7 +242,7 @@ const FiveWhysGame: React.FC<Props> = ({ onExit, onComplete }) => {
                     نسخه آفلاین — این اجرا در کارنامه ثبت نمی‌شود.
                 </div>
             )}
-            <div className="text-center text-xs text-slate-500 font-bold mb-4">سطح {toPersianNum(currentLevel + 1)} از ۵</div>
+            <div className="text-center text-xs text-slate-500 font-bold mb-4">سطح {toPersianNum(currentLevel + 1)} از {toPersianNum(levelCount)}</div>
 
             {/* Chain History */}
             <div className="space-y-4 mb-8 opacity-60 hover:opacity-100 transition-opacity">
