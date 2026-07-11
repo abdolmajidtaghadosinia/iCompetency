@@ -1,11 +1,25 @@
 
 import React, { useMemo, useState } from 'react';
 import { UserProfile } from '../types';
-import { 
+import {
   ShieldCheck, Printer, Share2, Loader2,
-  Layers, Calculator, Zap, Box, Compass, Eye, LayoutGrid, 
-  Target, Microscope, Sparkles, Hexagon, Briefcase
+  Layers, Calculator, Zap, Box, Compass, Eye, LayoutGrid,
+  Target, Microscope, Sparkles, Hexagon, Briefcase, Brain, Search, Puzzle
 } from 'lucide-react';
+
+// Methodology assessment display config (keys match the server payload subjects).
+const METH_CONFIG: Record<string, { title: string; icon: any; color: string; bg: string }> = {
+  '5whys':   { title: 'ریشه‌یابی (۵ چرا)',            icon: Search, color: 'text-cyan-600 dark:text-cyan-400',       bg: 'bg-cyan-500' },
+  'swot':    { title: 'تحلیل استراتژیک (SWOT)',        icon: Target, color: 'text-fuchsia-600 dark:text-fuchsia-400', bg: 'bg-fuchsia-500' },
+  'cynefin': { title: 'تصمیم‌گیری زمینه‌مند (Cynefin)', icon: Brain,  color: 'text-violet-600 dark:text-violet-400',   bg: 'bg-violet-500' },
+};
+const METH_ORDER = ['5whys', 'swot', 'cynefin'];
+const DIM_LABELS: Record<string, string> = {
+  domainAccuracy: 'تشخیص دامنه', responseAccuracy: 'انتخاب واکنش',
+  classificationAccuracy: 'دقت طبقه‌بندی', internalExternalDiscrimination: 'تفکیک داخلی/خارجی',
+  positiveNegativeDiscrimination: 'تفکیک مثبت/منفی', strategyAlignment: 'هم‌راستایی استراتژی',
+  precision: 'دقت علّی', directness: 'مسیر مستقیم',
+};
 import { toPersianNum } from '../utils';
 import { getCareerFit } from '../utils/scoring';
 import { shareResume } from '../utils/pdfGenerator';
@@ -140,6 +154,9 @@ const VerifiedResume: React.FC<Props> = ({ user, isDarkMode = false }) => {
   // Calculate Career Fit
   const careerProfiles = useMemo(() => getCareerFit(user), [user]);
   const bestFit = careerProfiles[0];
+
+  const methResults = user.methodologyResults ?? {};
+  const methItems = METH_ORDER.filter(k => methResults[k]).map(k => ({ key: k, ...methResults[k], cfg: METH_CONFIG[k] }));
 
   const bigFiveData = user.bigFive ? [
     { title: 'گشودگی (Openness)', score: user.bigFive.Openness, color: 'text-blue-500', bg: 'bg-blue-500' },
@@ -316,6 +333,58 @@ const VerifiedResume: React.FC<Props> = ({ user, isDarkMode = false }) => {
               </div>
           </div>
       </div>
+
+      {/* --- Methodology / Problem-Solving Assessments --- */}
+      {methItems.length > 0 && (
+        <div className="mb-8 animate-fade-in-up">
+          <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-md rounded-3xl p-8 shadow-soft dark:shadow-none border border-slate-100 dark:border-slate-700">
+            <div className="flex items-center gap-4 mb-8">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-cyan-500 to-violet-500 flex items-center justify-center shadow-lg">
+                <Puzzle className="text-white" size={24} />
+              </div>
+              <div>
+                <h3 className="text-2xl font-black text-slate-900 dark:text-white">آزمون‌های حل مسئله</h3>
+                <p className="text-slate-400 dark:text-slate-500 font-bold text-sm">تحلیل چندبعدی مهارت‌های تحلیل و تصمیم‌گیری بر پایه شواهد</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {methItems.map(item => {
+                const dims = Object.entries(item.dimensions ?? {});
+                return (
+                  <div key={item.key} className="bg-slate-50 dark:bg-slate-700/40 rounded-2xl p-5 border border-slate-100 dark:border-slate-600">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-2.5">
+                        <div className={`w-10 h-10 rounded-xl ${item.cfg.bg} bg-opacity-10 flex items-center justify-center`}>
+                          <item.cfg.icon size={20} className={item.cfg.color} />
+                        </div>
+                        <h4 className="font-bold text-slate-800 dark:text-white text-sm leading-tight">{item.cfg.title}</h4>
+                      </div>
+                      <div className="text-center shrink-0">
+                        <div className="text-2xl font-black text-slate-800 dark:text-white tabular-nums leading-none">{toPersianNum(item.score)}</div>
+                        <div className="text-[9px] text-slate-400 font-bold uppercase">از ۱۰۰</div>
+                      </div>
+                    </div>
+                    <div className="space-y-2.5">
+                      {dims.map(([dk, dv]) => (
+                        <div key={dk}>
+                          <div className="flex justify-between text-[11px] font-bold mb-1">
+                            <span className="text-slate-600 dark:text-slate-300">{DIM_LABELS[dk] ?? dk}</span>
+                            <span className="text-slate-400 tabular-nums">{toPersianNum(dv)}</span>
+                          </div>
+                          <div className="h-1.5 bg-slate-200 dark:bg-slate-600 rounded-full overflow-hidden">
+                            <div className={`h-full ${item.cfg.bg} rounded-full transition-all duration-1000`} style={{ width: `${Math.max(0, Math.min(100, dv))}%` }} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
       {user.bigFive && (
         <div className="col-span-12 mt-6">

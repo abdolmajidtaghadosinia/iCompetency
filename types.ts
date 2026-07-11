@@ -54,6 +54,13 @@ export interface UserProfile {
     Agreeableness: number;
     Neuroticism: number;
   };
+  // Latest rubric result per methodology game (5whys/swot/cynefin), derived
+  // server-side from the analytical payload stored in game_results.
+  methodologyResults?: Record<string, {
+    score: number;
+    dimensions: Record<string, number>;
+    updatedAt?: string;
+  }>;
 }
 
 export interface SkillMatrix {
