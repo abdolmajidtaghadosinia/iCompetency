@@ -1,9 +1,10 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { AppView, JourneyNode } from '../types';
-import { 
-  Layers, Calculator, Zap, Box, Compass, Eye, LayoutGrid, 
-  Check, Lock, MapPin, Search, Cpu, Server, Users, X, PlayCircle
+import {
+  Layers, Calculator, Zap, Box, Compass, Eye, LayoutGrid,
+  Check, Lock, MapPin, Search, Cpu, Server, Users, X, PlayCircle,
+  Trophy, Crown, Coins, Flag
 } from 'lucide-react';
 import { toPersianNum } from '../utils';
 import { getJourneyNodes, ServerJourneyNode } from '../services/apiService';
@@ -31,6 +32,21 @@ interface ExtendedJourneyNode extends JourneyNode {
     subNodes?: SubNode[];
 }
 
+// Per-node accent so the map echoes the same color language MiniGameHub uses
+// per assessment code (A9 pink, A10 blue, ...). Written as literal class
+// strings (not composed at runtime) so Tailwind's content scanner picks them up.
+const NODE_ACCENTS: Record<string, { grad: string; solid: string; glow: string }> = {
+  'node-1': { grad: 'from-pink-500 to-rose-500', solid: 'bg-pink-500', glow: 'shadow-pink-500/40' },
+  'node-2': { grad: 'from-blue-500 to-indigo-500', solid: 'bg-blue-500', glow: 'shadow-blue-500/40' },
+  'node-3': { grad: 'from-amber-400 to-orange-500', solid: 'bg-amber-500', glow: 'shadow-amber-500/40' },
+  'node-4': { grad: 'from-indigo-500 to-violet-500', solid: 'bg-indigo-500', glow: 'shadow-indigo-500/40' },
+  'node-5': { grad: 'from-emerald-500 to-teal-500', solid: 'bg-emerald-500', glow: 'shadow-emerald-500/40' },
+  'node-6': { grad: 'from-red-500 to-rose-600', solid: 'bg-red-500', glow: 'shadow-red-500/40' },
+  'node-7': { grad: 'from-purple-500 to-fuchsia-500', solid: 'bg-purple-500', glow: 'shadow-purple-500/40' },
+  'node-final': { grad: 'from-amber-500 via-orange-500 to-rose-600', solid: 'bg-orange-500', glow: 'shadow-orange-500/50' },
+};
+const DEFAULT_ACCENT = NODE_ACCENTS['node-4'];
+
 // Updated coordinates for a smoother Sine Wave flow from Right (Start) to Left (End)
 const staticNodes: ExtendedJourneyNode[] = [
   {
@@ -39,7 +55,7 @@ const staticNodes: ExtendedJourneyNode[] = [
     title: 'A9: سنجش جامع حافظه',
     type: 'Assessment',
     icon: Layers,
-    xpReward: 300, 
+    xpReward: 300,
     coinReward: 50,
     position: 'center',
     x: 90, y: 50,
@@ -61,7 +77,7 @@ const staticNodes: ExtendedJourneyNode[] = [
     requiredNodeId: 'node-1',
     position: 'right',
     x: 78, y: 25,
-    description: "سنجش سرعت و دقت پردازش ذهنی در عملیات محاسباتی" 
+    description: "سنجش سرعت و دقت پردازش ذهنی در عملیات محاسباتی"
   },
   {
     id: 'node-3',
@@ -170,6 +186,19 @@ const JourneyMap: React.FC<Props> = ({ unlockedNodes, completedNodes, onSelectNo
     return unlocked.length > 0 ? unlocked[unlocked.length - 1].id : nodesList[0].id;
   }, [unlockedNodes]);
 
+  // Journey-wide progress summary, shown as a stat card so the header isn't
+  // followed by dead space and the user sees overall standing at a glance.
+  const { completedCount, progressPct, earnedXp, totalXp } = useMemo(() => {
+    const done = nodesList.filter(n => completedNodes.includes(n.id));
+    const totalXpAll = nodesList.reduce((s, n) => s + n.xpReward, 0);
+    return {
+      completedCount: done.length,
+      progressPct: nodesList.length > 0 ? (done.length / nodesList.length) * 100 : 0,
+      earnedXp: done.reduce((s, n) => s + n.xpReward, 0),
+      totalXp: totalXpAll,
+    };
+  }, [nodesList, completedNodes]);
+
   useEffect(() => {
     if (scrollContainerRef.current) {
         const activeNode = nodesList.find(n => n.id === activeNodeId);
@@ -195,17 +224,16 @@ const JourneyMap: React.FC<Props> = ({ unlockedNodes, completedNodes, onSelectNo
       }
   };
 
-  // Improved Curve Calculation for smoother path
+  // Smooth bezier through every node - used as the pale "full route" guide.
   const getPathData = () => {
       if (nodesList.length < 2) return "";
-      
+
       let d = `M ${nodesList[0].x} ${nodesList[0].y}`;
-      
+
       for (let i = 0; i < nodesList.length - 1; i++) {
           const curr = nodesList[i];
           const next = nodesList[i+1];
-          
-          // Calculate control points for smooth bezier
+
           const cp1x = (curr.x + next.x) / 2;
           const cp1y = curr.y;
           const cp2x = (curr.x + next.x) / 2;
@@ -216,69 +244,121 @@ const JourneyMap: React.FC<Props> = ({ unlockedNodes, completedNodes, onSelectNo
       return d;
   };
 
+  // Per-segment path so the traveled portion (destination already unlocked)
+  // can be drawn as a solid colored road, distinct from the untraveled part.
+  const segments = useMemo(() => {
+      const segs: { d: string; traveled: boolean }[] = [];
+      for (let i = 0; i < nodesList.length - 1; i++) {
+          const curr = nodesList[i];
+          const next = nodesList[i + 1];
+          const cp1x = (curr.x + next.x) / 2, cp1y = curr.y;
+          const cp2x = (curr.x + next.x) / 2, cp2y = next.y;
+          segs.push({
+              d: `M ${curr.x} ${curr.y} C ${cp1x} ${cp1y} ${cp2x} ${cp2y} ${next.x} ${next.y}`,
+              traveled: unlockedNodes.includes(next.id),
+          });
+      }
+      return segs;
+  }, [nodesList, unlockedNodes]);
+
   return (
     <div className="w-full h-full bg-[#f8fafc] dark:bg-slate-950 relative flex flex-col items-center overflow-hidden transition-colors duration-300">
-        
+
         {/* Modern Dot Pattern Background */}
-        <div className="absolute inset-0 pointer-events-none" style={{ 
-            backgroundImage: 'radial-gradient(circle, #cbd5e1 1.5px, transparent 1.5px)', 
+        <div className="absolute inset-0 pointer-events-none" style={{
+            backgroundImage: 'radial-gradient(circle, #cbd5e1 1.5px, transparent 1.5px)',
             backgroundSize: '24px 24px',
             opacity: 0.4
         }}></div>
-        
+
         {/* Subtle Background Blobs */}
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-200/20 rounded-full blur-[100px] pointer-events-none"></div>
         <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-purple-200/20 rounded-full blur-[100px] pointer-events-none"></div>
 
         {/* Header */}
-        <div className={`relative z-10 pt-8 pb-2 text-center transition-all duration-500 flex-shrink-0 w-full ${focusedNode ? 'opacity-0 -translate-y-10 pointer-events-none' : 'opacity-100'}`}>
+        <div className={`relative z-10 pt-6 md:pt-8 pb-1 text-center transition-all duration-500 flex-shrink-0 w-full ${focusedNode ? 'opacity-0 -translate-y-10 pointer-events-none' : 'opacity-100'}`}>
             <h1 className="text-2xl font-black text-slate-800 dark:text-white flex items-center justify-center gap-2 tracking-tight">
-                <MapPin className="text-blue-600" /> نقشه مسیر صلاحیت
+                <MapPin className="text-indigo-600 dark:text-indigo-400" /> نقشه مسیر صلاحیت
             </h1>
             <p className="text-slate-500 dark:text-slate-400 text-xs font-bold mt-1 tracking-wide">مسیر ارزیابی شایستگی‌های شناختی و رفتاری</p>
         </div>
 
+        {/* Journey Progress Summary */}
+        <div className={`relative z-10 w-full max-w-2xl mx-auto px-4 md:px-0 pt-4 md:pt-5 pb-1 flex-shrink-0 transition-all duration-500 ${focusedNode ? 'opacity-0 -translate-y-10 pointer-events-none' : 'opacity-100'}`}>
+            <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-md rounded-3xl px-4 md:px-5 py-3.5 shadow-soft dark:shadow-none border border-slate-100 dark:border-slate-700 flex items-center gap-3 md:gap-4">
+                <div className="w-11 h-11 md:w-12 md:h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center shrink-0 shadow-lg shadow-indigo-500/30">
+                    <Trophy size={20} />
+                </div>
+                <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-xs font-black text-slate-700 dark:text-slate-200">{toPersianNum(completedCount)} از {toPersianNum(nodesList.length)} مرحله تکمیل شده</span>
+                        <span className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 shrink-0">{toPersianNum(Math.round(progressPct))}٪</span>
+                    </div>
+                    <div className="h-2.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                        <div
+                            className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-1000 ease-out"
+                            style={{ width: `${Math.max(progressPct > 0 ? 4 : 0, progressPct)}%` }}
+                        ></div>
+                    </div>
+                </div>
+                <div className="hidden sm:flex items-center gap-1.5 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-3 py-2.5 rounded-xl shrink-0 font-black text-xs tabular-nums">
+                    <Zap size={14} className="fill-amber-500 text-amber-500" />
+                    {toPersianNum(earnedXp)}<span className="text-slate-400 dark:text-slate-500 font-bold">/{toPersianNum(totalXp)}</span>
+                </div>
+            </div>
+        </div>
+
         {/* Mobile Journey List */}
-        <div className="md:hidden flex-1 overflow-y-auto pb-24 px-4 pt-4">
-            <div className="space-y-4">
+        <div className="md:hidden flex-1 overflow-y-auto pb-24 px-4 pt-4 w-full">
+            <div className="space-y-4 max-w-lg mx-auto">
                 {nodesList.map((node, index) => {
                     const isUnlocked = unlockedNodes.includes(node.id);
                     const isCompleted = completedNodes.includes(node.id);
                     const isCurrent = activeNodeId === node.id;
-                    
+                    const isBoss = node.type === 'Boss';
+                    const accent = NODE_ACCENTS[node.id] ?? DEFAULT_ACCENT;
+
                     return (
                         <div key={node.id} className="relative">
                             {/* Connecting line */}
                             {index < nodesList.length - 1 && (
-                                <div className="absolute top-full left-8 w-0.5 h-4 bg-slate-200 dark:bg-slate-700"></div>
+                                <div className={`absolute top-full right-8 w-0.5 h-4 ${isUnlocked && unlockedNodes.includes(nodesList[index + 1]?.id) ? 'bg-gradient-to-b from-indigo-400 to-purple-400' : 'bg-slate-200 dark:bg-slate-700'}`}></div>
                             )}
-                            
+
                             <button
                                 onClick={() => isUnlocked && handleNodeClick(node)}
                                 disabled={!isUnlocked}
                                 className={`w-full flex items-center gap-4 p-4 rounded-2xl border transition-all ${
-                                    isCurrent 
-                                        ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 shadow-md' 
-                                        : isCompleted 
-                                            ? 'bg-emerald-50/50 dark:bg-emerald-900/10 border-emerald-200 dark:border-emerald-800' 
-                                            : isUnlocked 
-                                                ? 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:shadow-md' 
+                                    isCurrent
+                                        ? 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-200 dark:border-indigo-800 shadow-md'
+                                        : isCompleted
+                                            ? 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700'
+                                            : isUnlocked
+                                                ? 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:shadow-md'
                                                 : 'bg-slate-100/50 dark:bg-slate-900/50 border-slate-200/50 dark:border-slate-800 opacity-60'
                                 }`}
                             >
-                                <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${
-                                    isCompleted ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600' : 
-                                    isCurrent ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600' : 
-                                    'bg-slate-100 dark:bg-slate-800 text-slate-400'
+                                <div className={`relative w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${
+                                    isCompleted ? `bg-gradient-to-br ${accent.grad} text-white shadow-md ${accent.glow}` :
+                                    isCurrent ? 'bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-md shadow-indigo-500/30' :
+                                    'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500'
                                 }`}>
-                                    {isCompleted ? <Check size={22} /> : !isUnlocked ? <Lock size={18} /> : <node.icon size={22} />}
+                                    {isCompleted ? <Check size={22} strokeWidth={3} /> : !isUnlocked ? <Lock size={18} /> : <node.icon size={22} />}
+                                    {isBoss && <Crown size={14} className="absolute -top-1.5 -right-1.5 text-amber-500 fill-amber-400 drop-shadow" />}
                                 </div>
-                                <div className="flex-1 text-right">
-                                    <h3 className={`font-bold text-sm ${isCurrent ? 'text-blue-700 dark:text-blue-300' : 'text-slate-700 dark:text-slate-200'}`}>{node.title}</h3>
+                                <div className="flex-1 text-right min-w-0">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                        <h3 className={`font-bold text-sm truncate ${isCurrent ? 'text-indigo-700 dark:text-indigo-300' : 'text-slate-700 dark:text-slate-200'}`}>{node.title}</h3>
+                                        {isBoss && <span className="text-[8px] font-black text-white bg-gradient-to-r from-amber-500 to-rose-600 px-1.5 py-0.5 rounded-full shrink-0">BOSS</span>}
+                                    </div>
                                     <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-1">{node.description}</p>
+                                    <div className="flex items-center gap-2 mt-1.5">
+                                        <span className="flex items-center gap-0.5 text-[9px] font-black text-amber-600 dark:text-amber-400"><Zap size={10} className="fill-amber-500 text-amber-500" />{toPersianNum(node.xpReward)}</span>
+                                        <span className="flex items-center gap-0.5 text-[9px] font-black text-yellow-700 dark:text-yellow-500"><Coins size={10} />{toPersianNum(node.coinReward)}</span>
+                                    </div>
                                 </div>
                                 {isCurrent && (
-                                    <span className="text-[9px] font-bold text-blue-600 bg-blue-100 dark:bg-blue-900/30 px-2 py-1 rounded-full shrink-0">فعلی</span>
+                                    <span className="text-[9px] font-bold text-white bg-gradient-to-r from-indigo-500 to-purple-600 px-2 py-1 rounded-full shrink-0">فعلی</span>
                                 )}
                             </button>
                         </div>
@@ -288,53 +368,62 @@ const JourneyMap: React.FC<Props> = ({ unlockedNodes, completedNodes, onSelectNo
         </div>
 
         {/* Map Container (Desktop only) */}
-        <div ref={scrollContainerRef} className="hidden md:block relative w-full flex-1 overflow-x-auto overflow-y-hidden custom-scrollbar" dir="ltr">
-            
-            <div 
-                className={`relative h-full min-w-[1200px] transition-all duration-700 ease-in-out transform ${focusedNode ? 'scale-[1.5] blur-md opacity-20 pointer-events-none' : 'scale-100 opacity-100'}`}
+        <div ref={scrollContainerRef} className="hidden md:flex relative w-full flex-1 items-center overflow-x-auto overflow-y-hidden custom-scrollbar" dir="ltr">
+
+            <div
+                className={`relative h-[380px] lg:h-[440px] w-full min-w-[1300px] shrink-0 transition-all duration-700 ease-in-out transform ${focusedNode ? 'scale-[1.5] blur-md opacity-20 pointer-events-none' : 'scale-100 opacity-100'}`}
                 style={focusedNode ? { transformOrigin: `${focusedNode.x}% ${focusedNode.y}%` } : {}}
             >
+                {/* Start marker */}
+                <div className="absolute flex flex-col items-center gap-1.5 opacity-70" style={{ left: '98%', top: '50%', transform: 'translate(-50%, -50%)' }}>
+                    <div className="w-9 h-9 rounded-full bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-center text-slate-400">
+                        <Flag size={16} />
+                    </div>
+                    <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 whitespace-nowrap">شروع</span>
+                </div>
+
                 <svg className="absolute inset-0 w-full h-full overflow-visible pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
-                    
+
                     {/* 1. The "Road" Base (Wide, semi-transparent) */}
-                    <path 
-                        d={getPathData()} 
-                        fill="none" 
-                        stroke="currentColor" 
-                        strokeWidth="10" 
+                    <path
+                        d={getPathData()}
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="9"
                         strokeLinecap="round"
                         strokeLinejoin="round"
                         className="text-white dark:text-slate-900 drop-shadow-xl"
                         style={{ filter: 'drop-shadow(0px 10px 20px rgba(0,0,0,0.05))' }}
                     />
-                    
-                    {/* 2. The "Road" Surface (Glassy look) */}
-                    <path 
-                        d={getPathData()} 
-                        fill="none" 
-                        stroke="url(#roadGradient)" 
-                        strokeWidth="6" 
+
+                    {/* 2. Pale dashed guide for the whole route (future road) */}
+                    <path
+                        d={getPathData()}
+                        fill="none"
+                        stroke="#94a3b8"
+                        strokeWidth="0.6"
+                        strokeDasharray="2 2.5"
                         strokeLinecap="round"
-                        strokeLinejoin="round"
                         className="opacity-40"
                     />
 
-                    {/* 3. The Path Line (Dashed connection) */}
-                    <path 
-                        d={getPathData()} 
-                        fill="none" 
-                        stroke="#94a3b8" 
-                        strokeWidth="0.3" 
-                        strokeDasharray="1 1"
-                        strokeLinecap="round"
-                        className="opacity-50"
-                    />
+                    {/* 3. Solid colored overlay for the traveled part of the road only */}
+                    {segments.filter(s => s.traveled).map((seg, i) => (
+                        <path
+                            key={i}
+                            d={seg.d}
+                            fill="none"
+                            stroke="url(#roadGradient)"
+                            strokeWidth="4.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                        />
+                    ))}
 
                     <defs>
                         <linearGradient id="roadGradient" x1="100%" y1="0%" x2="0%" y2="0%">
-                            <stop offset="0%" stopColor="#bae6fd" /> 
-                            <stop offset="50%" stopColor="#e0e7ff" />
-                            <stop offset="100%" stopColor="#ddd6fe" />
+                            <stop offset="0%" stopColor="#818cf8" />
+                            <stop offset="100%" stopColor="#a855f7" />
                         </linearGradient>
                     </defs>
                 </svg>
@@ -345,12 +434,17 @@ const JourneyMap: React.FC<Props> = ({ unlockedNodes, completedNodes, onSelectNo
                     const isCompleted = completedNodes.includes(node.id);
                     const isCurrent = activeNodeId === node.id;
                     const isHovered = hoveredNode === node.id;
-                    
+                    const isBoss = node.type === 'Boss';
+                    const accent = NODE_ACCENTS[node.id] ?? DEFAULT_ACCENT;
+
                     // Determine if node is in the top half or bottom half for tooltip positioning
                     const isTopHalf = node.y < 50;
+                    const sizeClass = isBoss ? 'w-20 h-20 md:w-24 md:h-24' : 'w-16 h-16 md:w-20 md:h-20';
+                    const innerSizeClass = isBoss ? 'w-16 h-16 md:w-[4.5rem] md:h-[4.5rem]' : 'w-12 h-12 md:w-14 md:h-14';
+                    const iconSize = isBoss ? 34 : 28;
 
                     return (
-                        <div 
+                        <div
                             key={node.id}
                             className="absolute transform -translate-x-1/2 -translate-y-1/2 z-20 group"
                             style={{ left: `${node.x}%`, top: `${node.y}%` }}
@@ -360,10 +454,21 @@ const JourneyMap: React.FC<Props> = ({ unlockedNodes, completedNodes, onSelectNo
                             {/* "You are here" Floating Badge */}
                             {isCurrent && !focusedNode && (
                                 <div className="absolute -top-16 left-1/2 -translate-x-1/2 animate-bounce z-50 whitespace-nowrap pointer-events-none">
-                                    <div className="bg-blue-600/90 backdrop-blur-sm text-white text-[10px] font-bold px-3 py-1.5 rounded-xl shadow-lg border border-blue-400/50 flex flex-col items-center">
+                                    <div className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-[10px] font-bold px-3 py-1.5 rounded-xl shadow-lg shadow-indigo-500/30 flex flex-col items-center">
                                         <span>شما اینجایید</span>
-                                        <div className="absolute -bottom-1 w-2 h-2 bg-blue-600/90 rotate-45"></div>
+                                        <div className="absolute -bottom-1 w-2 h-2 bg-purple-600 rotate-45"></div>
                                     </div>
+                                </div>
+                            )}
+
+                            {/* Order chip / Crown for boss */}
+                            {isUnlocked && (
+                                <div className={`absolute -top-1 -left-1 z-30 w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black shadow-sm border-2 border-white dark:border-slate-900 ${
+                                    isBoss ? 'bg-gradient-to-br from-amber-400 to-rose-500 text-white' :
+                                    isCompleted ? `bg-gradient-to-br ${accent.grad} text-white` :
+                                    'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400'
+                                }`}>
+                                    {isBoss ? <Crown size={12} className="fill-current" /> : toPersianNum(index + 1)}
                                 </div>
                             )}
 
@@ -371,30 +476,28 @@ const JourneyMap: React.FC<Props> = ({ unlockedNodes, completedNodes, onSelectNo
                             <button
                                 onClick={() => isUnlocked && handleNodeClick(node)}
                                 className={`
-                                    relative w-16 h-16 md:w-20 md:h-20 rounded-full flex items-center justify-center transition-all duration-500 ease-out
-                                    ${isCurrent ? 'scale-110' : 'hover:scale-105'}
-                                    ${!isUnlocked ? 'grayscale opacity-70' : ''}
+                                    relative ${sizeClass} rounded-full flex items-center justify-center transition-all duration-500 ease-out
+                                    ${isCurrent ? 'scale-110' : isUnlocked ? 'hover:scale-105' : 'scale-95 cursor-not-allowed'}
                                 `}
                             >
-                                {/* Outer Glow/Ring */}
+                                {/* Outer Ring */}
                                 <div className={`
-                                    absolute inset-0 rounded-full border-4 transition-colors duration-500
-                                    ${isCompleted 
-                                        ? 'border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/50 dark:bg-emerald-900/20' 
-                                        : isCurrent 
-                                            ? 'border-blue-300 dark:border-blue-800 bg-blue-100/50 dark:bg-blue-900/30 animate-pulse-soft' 
-                                            : 'border-slate-100 dark:border-slate-800 bg-white/50 dark:bg-slate-800/50'}
-                                    shadow-lg backdrop-blur-sm
+                                    absolute inset-0 rounded-full border-4 transition-colors duration-500 shadow-lg backdrop-blur-sm
+                                    ${isCompleted
+                                        ? `border-white dark:border-slate-900 bg-gradient-to-br ${accent.grad} ${accent.glow}`
+                                        : isCurrent
+                                            ? 'border-white dark:border-slate-900 bg-gradient-to-br from-indigo-500 to-purple-600 shadow-indigo-500/40 animate-pulse'
+                                            : 'border-slate-100 dark:border-slate-800 bg-slate-100/70 dark:bg-slate-800/70'}
                                 `}></div>
 
                                 {/* Inner Circle (Glassy) */}
                                 <div className={`
-                                    relative z-10 w-12 h-12 md:w-14 md:h-14 rounded-full flex items-center justify-center
-                                    bg-gradient-to-br from-white to-slate-100 dark:from-slate-700 dark:to-slate-800
-                                    shadow-inner border border-white/50 dark:border-slate-600
-                                    ${isCompleted ? 'text-emerald-500' : isCurrent ? 'text-blue-600' : 'text-slate-400'}
+                                    relative z-10 ${innerSizeClass} rounded-full flex items-center justify-center
+                                    ${isCompleted || isCurrent
+                                        ? 'bg-white/15 backdrop-blur-sm text-white'
+                                        : 'bg-gradient-to-br from-white to-slate-100 dark:from-slate-700 dark:to-slate-800 shadow-inner border border-white/50 dark:border-slate-600 text-slate-400 dark:text-slate-500'}
                                 `}>
-                                    {isCompleted ? <Check size={28} strokeWidth={3} /> : <node.icon size={28} />}
+                                    {isCompleted ? <Check size={iconSize} strokeWidth={3} /> : <node.icon size={iconSize} />}
                                 </div>
 
                                 {/* Lock Overlay */}
@@ -403,24 +506,46 @@ const JourneyMap: React.FC<Props> = ({ unlockedNodes, completedNodes, onSelectNo
                                         <Lock size={12} />
                                     </div>
                                 )}
-                                
-                                {/* Pulse Effect for Current */}
-                                {isCurrent && (
-                                    <div className="absolute inset-0 rounded-full border-2 border-blue-400 opacity-0 animate-ping"></div>
-                                )}
                             </button>
+
+                            {/* Boss label - always visible, not just on hover */}
+                            {isBoss && (
+                                <div className="absolute left-1/2 -translate-x-1/2 top-[calc(100%+6px)] whitespace-nowrap pointer-events-none">
+                                    <span className={`text-[9px] font-black px-2.5 py-1 rounded-full shadow-sm ${
+                                        isUnlocked
+                                            ? 'text-white bg-gradient-to-r from-amber-500 to-rose-600'
+                                            : 'text-slate-400 bg-slate-100 dark:bg-slate-800 dark:text-slate-500'
+                                    }`}>غول نهایی</span>
+                                </div>
+                            )}
 
                             {/* Tooltip on Hover */}
                             <div className={`
                                 absolute left-1/2 -translate-x-1/2 w-64 transition-all duration-300 z-50 pointer-events-none
-                                ${isTopHalf 
-                                    ? (isHovered ? 'top-[120%] opacity-100 translate-y-0' : 'top-[100%] opacity-0 -translate-y-2') 
+                                ${isTopHalf
+                                    ? (isHovered ? 'top-[120%] opacity-100 translate-y-0' : 'top-[100%] opacity-0 -translate-y-2')
                                     : (isHovered ? 'bottom-[120%] opacity-100 translate-y-0' : 'bottom-[100%] opacity-0 translate-y-2')
                                 }
                             `}>
-                                <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-xl rounded-2xl p-4 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.1)] border border-white/50 dark:border-slate-600 text-center">
-                                    <h3 className="font-bold text-slate-800 dark:text-white mb-1">{node.title}</h3>
-                                    <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium leading-relaxed">{node.description}</p>
+                                <div className="bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl rounded-2xl p-4 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.15)] border border-white/50 dark:border-slate-600 text-center">
+                                    <div className="flex items-center justify-center gap-1.5 mb-1.5 flex-wrap">
+                                        {isBoss && <span className="text-[8px] font-black text-white bg-gradient-to-r from-amber-500 to-rose-600 px-2 py-0.5 rounded-full">BOSS</span>}
+                                        <h3 className="font-bold text-slate-800 dark:text-white text-sm">{node.title}</h3>
+                                    </div>
+                                    <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium leading-relaxed mb-3">{node.description}</p>
+                                    <div className="flex items-center justify-center gap-2">
+                                        <span className="flex items-center gap-1 text-[10px] font-black text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-2 py-1 rounded-lg">
+                                            <Zap size={11} className="fill-amber-500 text-amber-500" />{toPersianNum(node.xpReward)}
+                                        </span>
+                                        <span className="flex items-center gap-1 text-[10px] font-black text-yellow-700 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20 px-2 py-1 rounded-lg">
+                                            <Coins size={11} />{toPersianNum(node.coinReward)}
+                                        </span>
+                                    </div>
+                                    {!isUnlocked && (
+                                        <p className="mt-2.5 text-[9px] font-bold text-slate-400 dark:text-slate-500 flex items-center justify-center gap-1">
+                                            <Lock size={10} /> ابتدا مرحله قبل را کامل کنید
+                                        </p>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -432,19 +557,19 @@ const JourneyMap: React.FC<Props> = ({ unlockedNodes, completedNodes, onSelectNo
         {/* --- FOCUS MODE OVERLAY (Micro-Journey Path) --- */}
         {focusedNode && focusedNode.subNodes && (
             <div className="absolute inset-0 z-50 flex flex-col bg-slate-50/95 dark:bg-slate-950/95 backdrop-blur-xl animate-fade-in overflow-hidden">
-                
+
                 <div className="p-8 flex items-center justify-between max-w-5xl mx-auto w-full">
                     <div className="flex items-center gap-4">
-                        <div className="w-16 h-16 bg-white dark:bg-slate-800 rounded-2xl flex items-center justify-center shadow-lg border border-slate-100 dark:border-slate-700">
-                             <focusedNode.icon size={32} className="text-blue-600 dark:text-blue-400" />
+                        <div className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${NODE_ACCENTS[focusedNode.id]?.grad ?? DEFAULT_ACCENT.grad} flex items-center justify-center shadow-lg text-white`}>
+                             <focusedNode.icon size={32} />
                         </div>
                         <div>
                             <h2 className="text-2xl font-black text-slate-800 dark:text-white">{focusedNode.title}</h2>
                             <p className="text-slate-500 dark:text-slate-400 text-sm font-bold">مسیر ارزیابی ریز-مهارت‌ها</p>
                         </div>
                     </div>
-                    
-                    <button 
+
+                    <button
                         onClick={() => setFocusedNode(null)}
                         className="p-3 rounded-full hover:bg-white dark:hover:bg-slate-800 transition-colors text-slate-400 hover:text-red-500"
                     >
@@ -463,7 +588,7 @@ const JourneyMap: React.FC<Props> = ({ unlockedNodes, completedNodes, onSelectNo
                                 key={sub.id}
                                 className="flex items-center gap-4 p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700"
                             >
-                                <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 flex items-center justify-center font-bold text-sm shrink-0">
+                                <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 flex items-center justify-center font-bold text-sm shrink-0">
                                     {toPersianNum(idx + 1)}
                                 </div>
                                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center bg-slate-100 dark:bg-slate-700 ${sub.color} shrink-0`}>
@@ -478,7 +603,7 @@ const JourneyMap: React.FC<Props> = ({ unlockedNodes, completedNodes, onSelectNo
                     </div>
                     <button
                         onClick={() => onSelectNode(focusedNode.view)}
-                        className="w-full max-w-sm mx-auto block py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-bold text-lg shadow-lg shadow-blue-500/30 active:scale-95 transition-all flex items-center justify-center gap-2"
+                        className="w-full max-w-sm mx-auto block py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-2xl font-bold text-lg shadow-lg shadow-indigo-500/30 active:scale-95 transition-all flex items-center justify-center gap-2"
                     >
                         <PlayCircle size={22} /> شروع آزمون جامع
                     </button>
@@ -487,7 +612,7 @@ const JourneyMap: React.FC<Props> = ({ unlockedNodes, completedNodes, onSelectNo
                 {/* Desktop: horizontal timeline */}
                 <div className="hidden md:flex flex-1 items-center justify-center w-full overflow-x-auto custom-scrollbar">
                     <div className="flex items-center gap-0 px-12 pb-12 min-w-[max-content]">
-                        
+
                         <div className="flex flex-col items-center gap-3 opacity-50">
                             <div className="w-4 h-4 rounded-full bg-slate-300 dark:bg-slate-700 ring-4 ring-slate-100 dark:ring-slate-800"></div>
                             <span className="text-xs font-bold text-slate-400">شروع</span>
@@ -495,7 +620,7 @@ const JourneyMap: React.FC<Props> = ({ unlockedNodes, completedNodes, onSelectNo
 
                         {focusedNode.subNodes.map((sub, idx) => (
                             <div key={sub.id} className="flex items-center">
-                                
+
                                 <div className={`w-32 h-1 ${idx === 0 ? 'bg-gradient-to-l from-slate-300 to-transparent' : 'bg-slate-300 dark:bg-slate-700'}`}></div>
 
                                 <div className="relative group">
@@ -504,13 +629,13 @@ const JourneyMap: React.FC<Props> = ({ unlockedNodes, completedNodes, onSelectNo
                                     </div>
 
                                     <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-6 w-56 animate-fade-in-up" style={{ animationDelay: `${idx * 100}ms` }}>
-                                        <div 
-                                            className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-700 hover:-translate-y-1 transition-transform cursor-pointer group-hover:border-blue-500 dark:group-hover:border-blue-400 text-center"
+                                        <div
+                                            className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-700 hover:-translate-y-1 transition-transform cursor-pointer group-hover:border-indigo-500 dark:group-hover:border-indigo-400 text-center"
                                             onClick={() => onSelectNode(focusedNode.view)}
                                         >
                                             <div className="font-bold text-slate-700 dark:text-slate-200 mb-1">{sub.title}</div>
                                             <p className="text-[10px] text-slate-500 dark:text-slate-400 mb-3 leading-relaxed">{sub.description}</p>
-                                            <button className="w-full py-1.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                                            <button className="w-full py-1.5 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
                                                 <PlayCircle size={12} /> شروع
                                             </button>
                                         </div>
@@ -531,9 +656,9 @@ const JourneyMap: React.FC<Props> = ({ unlockedNodes, completedNodes, onSelectNo
                 </div>
 
                 <div className="hidden md:block p-8 text-center">
-                    <button 
+                    <button
                         onClick={() => onSelectNode(focusedNode.view)}
-                        className="inline-flex items-center gap-2 px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-full font-bold transition-colors shadow-lg shadow-blue-500/30 active:scale-95"
+                        className="inline-flex items-center gap-2 px-8 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-full font-bold transition-colors shadow-lg shadow-indigo-500/30 active:scale-95"
                     >
                         <PlayCircle size={18} /> شروع آزمون جامع (شامل {toPersianNum(focusedNode.subNodes?.length || 0)} بخش)
                     </button>
