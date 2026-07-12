@@ -35,6 +35,7 @@ import {
   clearStoredToken,
   completeGame,
   getMe,
+  getScoringNorms,
   getStoredToken,
   login,
   logout,
@@ -47,6 +48,7 @@ import {
   submitMemoryProgress,
   syncProfile,
 } from './services/apiService';
+import { setNorms } from './utils/scoring';
 
 // URL <-> AppView mapping. This is the only place that needs to know about
 // paths - every other component still speaks in AppView, unchanged.
@@ -206,6 +208,13 @@ function App() {
     // Deliberately does not navigate anywhere on success, so a refresh or a
     // deep link (e.g. /games/memory) restores the user directly onto that
     // route instead of bouncing them back to the dashboard.
+  }, []);
+
+  // Pull the live (versioned, possibly empirically calibrated) norms table so
+  // client-side T-score displays match the server; the built-in provisional
+  // values stay in place if this fails offline.
+  useEffect(() => {
+    getScoringNorms().then(setNorms).catch(() => {});
   }, []);
 
   // Toggle Dark Mode

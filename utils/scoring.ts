@@ -2,24 +2,56 @@
 // utils/scoring.ts
 
 // --- Constants & Norms (Simulated based on v2.0 Spec) ---
-// Provisional norms — placeholders until empirical means/SDs are computed
-// from real runs (see docs/assessment-quality-review.md, phase 2). Kept in
-// sync by hand with scoring_norms() in backend/logic/scoring.php.
-// A10/A11 are on the gamification-free construct measures (0-100 throughput
-// scales) submitted in payload.cognitiveRaw, not the old point totals.
-const NORMS = {
-  A9a: { mean: 6.5, sd: 1.5 },   // Corsi Span
-  A9b: { mean: 75, sd: 15 },     // Paired Accuracy
-  A9c: { mean: 2.5, sd: 1.0 },   // N-Back d-prime (Typical d' ranges 0-4)
-  A10: { mean: 50, sd: 18 },     // Math throughput (weighted correct/min × accuracy)
-  A10Plus: { mean: 50, sd: 20 }, // Pattern Score
-  A11: { mean: 50, sd: 18 },     // Perceptual-speed throughput (RT-based × accuracy)
-  A12: { mean: 50, sd: 20 },     // Visualization Score
-  A13: { mean: 60, sd: 20 },     // Orientation Score
-  A14: { mean: 50, sd: 15 },     // Stroop Inhibition Score
-  A15: { mean: 50, sd: 15 },     // Multitask Score
-  A18: { mean: 60, sd: 20 }      // Fact Finding
+// Norm provenance: the server's scoring_norms table is the single source of
+// truth (versioned; promoted from 'provisional' to 'empirical' by
+// backend/calibrate_norms.php once enough real first-attempt data exists).
+// The values below only mirror the DB seed as an offline fallback until
+// setNorms() applies the live table fetched from GET /game/norms at startup.
+export interface NormMeta {
+  mean: number;
+  sd: number;
+  n: number;
+  source: 'provisional' | 'empirical';
+  version: number;
+}
+
+const DEFAULT_NORMS: Record<string, NormMeta> = {
+  A9a: { mean: 6.5, sd: 1.5, n: 0, source: 'provisional', version: 1 },   // Corsi Span
+  A9b: { mean: 75, sd: 15, n: 0, source: 'provisional', version: 1 },     // Paired Accuracy
+  A9c: { mean: 2.5, sd: 1.0, n: 0, source: 'provisional', version: 1 },   // N-Back d-prime
+  A10: { mean: 50, sd: 18, n: 0, source: 'provisional', version: 1 },     // Math throughput
+  A10Plus: { mean: 50, sd: 20, n: 0, source: 'provisional', version: 1 }, // Pattern Score
+  A11: { mean: 50, sd: 18, n: 0, source: 'provisional', version: 1 },     // Perceptual-speed throughput
+  A12: { mean: 50, sd: 20, n: 0, source: 'provisional', version: 1 },     // Visualization Score
+  A13: { mean: 60, sd: 20, n: 0, source: 'provisional', version: 1 },     // Orientation Score
+  A14: { mean: 50, sd: 15, n: 0, source: 'provisional', version: 1 },     // Stroop Inhibition Score
+  A15: { mean: 50, sd: 15, n: 0, source: 'provisional', version: 1 },     // Multitask Score
+  A18: { mean: 60, sd: 20, n: 0, source: 'provisional', version: 1 },     // Fact Finding
 };
+
+let NORMS: Record<string, NormMeta> = { ...DEFAULT_NORMS };
+
+/** Overlay live norms from the server; unknown keys and bad rows are ignored. */
+export const setNorms = (payload: { norms?: Record<string, Partial<NormMeta>> } | null | undefined): void => {
+  if (!payload?.norms) return;
+  const next = { ...NORMS };
+  for (const [key, row] of Object.entries(payload.norms)) {
+    if (!(key in next) || typeof row?.mean !== 'number' || typeof row?.sd !== 'number' || row.sd <= 0) continue;
+    next[key] = {
+      mean: row.mean,
+      sd: row.sd,
+      n: typeof row.n === 'number' ? row.n : 0,
+      source: row.source === 'empirical' ? 'empirical' : 'provisional',
+      version: typeof row.version === 'number' ? row.version : 1,
+    };
+  }
+  NORMS = next;
+};
+
+/** Restore the built-in provisional defaults (used by tests). */
+export const resetNorms = (): void => { NORMS = { ...DEFAULT_NORMS }; };
+
+export const getNormMeta = (key: string): NormMeta | undefined => NORMS[key];
 
 export interface RawScores {
   A9a_Corsi: number;

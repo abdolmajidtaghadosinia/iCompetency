@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { toPersianNum } from '../utils';
-import { getPerformanceLabel, getTScoreColor, toTScore } from '../utils/scoring';
+import { getNormMeta, getPerformanceLabel, getTScoreColor, toTScore } from '../utils/scoring';
 import { Trophy, TrendingUp, Activity, CheckCircle2, RotateCcw } from 'lucide-react';
 import { sfx } from '../services/audioService';
 
@@ -101,9 +101,24 @@ const GameResultCard: React.FC<Props> = ({ title, rawScore, scoreKey, metrics, o
                         </div>
                     </div>
 
-                    <div className={`px-4 py-1.5 rounded-full font-bold text-sm mb-8 ${colorClass}`}>
+                    <div className={`px-4 py-1.5 rounded-full font-bold text-sm mb-2 ${colorClass}`}>
                         {performance}
                     </div>
+
+                    {/* Norm provenance: be honest about what the T-score is
+                        standardized against until empirical norms are live. */}
+                    {isNormed && (() => {
+                        const meta = getNormMeta(scoreKey as string);
+                        if (!meta) return <div className="mb-6" />;
+                        return (
+                            <div className="text-[10px] font-bold text-slate-400 dark:text-slate-500 mb-6">
+                                {meta.source === 'empirical'
+                                    ? `مرجع: نرم تجربی (n=${toPersianNum(meta.n)} · نسخه ${toPersianNum(meta.version)})`
+                                    : 'مرجع: نرم آزمایشی — تا کالیبراسیون با داده واقعی'}
+                            </div>
+                        );
+                    })()}
+                    {!isNormed && <div className="mb-6" />}
 
                     {/* Metrics Grid */}
                     <div className="grid grid-cols-2 gap-4 w-full mb-8">

@@ -114,6 +114,9 @@ Authorization: Bearer {{token}}
 GET {{baseUrl}}/game/nodes
 Authorization: Bearer {{token}}
 
+### Scoring norms (versioned, with provenance)
+GET {{baseUrl}}/game/norms
+
 ### Memory progress - Corsi
 POST {{baseUrl}}/game/memory-progress
 Authorization: Bearer {{token}}

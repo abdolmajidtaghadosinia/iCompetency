@@ -236,3 +236,26 @@ DELETE FROM auth_tokens WHERE expires_at < NOW();
 DELETE FROM password_resets WHERE expires_at < NOW() OR used_at IS NOT NULL;
 DELETE FROM rate_limits WHERE expires_at IS NOT NULL AND expires_at < NOW();
 ```
+
+## کالیبراسیون نرم‌های امتیازدهی
+
+نرم‌های T-Score (میانگین/انحراف معیار هر آزمون) در جدول `scoring_norms` نگهداری می‌شوند و در نصب اولیه با مقادیر آزمایشی (provisional) پر می‌شوند. برای نصب‌های قدیمی که این جدول را ندارند، بخش `scoring_norms` از `schema.sql` (شامل `CREATE TABLE` و `INSERT`های seed) را جداگانه در phpMyAdmin اجرا کنید — تا وقتی جدول نباشد، بک‌اند به‌صورت خودکار از همان مقادیر آزمایشی داخلی استفاده می‌کند و چیزی نمی‌شکند.
+
+پس از جمع شدن داده واقعی کاربران، موتور کالیبراسیون را از CLI اجرا کنید (روی cPanel از بخش Cron Jobs یا Terminal):
+
+```bash
+# گزارش خشک: نمونه‌ها، میانگین/SD مقاوم (winsorized)، همبستگی retest — بدون نوشتن چیزی
+php backend/calibrate_norms.php
+
+# اعمال نرم‌های واجد شرایط (n >= min-n) به صورت empirical + نسخه جدید،
+# سپس بازمحاسبه T-Scoreهای ذخیره‌شده همه پروفایل‌ها زیر نرم جدید
+php backend/calibrate_norms.php --apply --recompute
+
+# گزینه‌ها: --min-n=100  --winsor=0.05
+```
+
+نکته‌ها:
+
+- فقط «اولین تلاش معتبر» هر کاربر وارد نمونه نرم می‌شود؛ اجراهای fallback، مقادیر خارج از سقف منطقی و ردیف‌های قدیمی با مقیاس گیمیفای‌شده کنار گذاشته می‌شوند.
+- هر نتیجه بازی با `_normVersion` مهر می‌خورد تا T-Scoreهای تاریخی پس از کالیبراسیون قابل حسابرسی بمانند.
+- فرانت‌اند نرم‌ها را از `GET /game/norms` می‌گیرد؛ نیازی به تغییر کد فرانت بعد از کالیبراسیون نیست.

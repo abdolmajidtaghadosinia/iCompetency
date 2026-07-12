@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { afterEach } from 'vitest';
 import {
   calculateDPrime,
   calculateStroopScore,
@@ -9,8 +10,39 @@ import {
   getPerformanceLabel,
   getTScoreColor,
   getCareerFit,
+  getNormMeta,
+  setNorms,
+  resetNorms,
   type RawScores,
 } from './scoring';
+
+afterEach(() => resetNorms());
+
+describe('runtime norms (setNorms/getNormMeta)', () => {
+  it('defaults to the provisional seed values', () => {
+    expect(getNormMeta('A10')).toEqual({ mean: 50, sd: 18, n: 0, source: 'provisional', version: 1 });
+    expect(toTScore(50, 'A10')).toBe(50);
+  });
+
+  it('applies a server-calibrated norm and T-scores shift accordingly', () => {
+    setNorms({ norms: { A10: { mean: 60, sd: 10, n: 240, source: 'empirical', version: 3 } } });
+    expect(getNormMeta('A10')).toEqual({ mean: 60, sd: 10, n: 240, source: 'empirical', version: 3 });
+    // raw 50 is now one SD below the empirical mean -> T = 40
+    expect(toTScore(50, 'A10')).toBe(40);
+  });
+
+  it('ignores unknown keys and degenerate rows instead of corrupting the table', () => {
+    setNorms({ norms: { NOT_A_KEY: { mean: 1, sd: 1 }, A11: { mean: 55, sd: 0 } } as never });
+    expect(getNormMeta('NOT_A_KEY')).toBeUndefined();
+    expect(getNormMeta('A11')?.sd).toBe(18); // sd<=0 rejected, default kept
+  });
+
+  it('resetNorms restores the provisional defaults', () => {
+    setNorms({ norms: { A10: { mean: 60, sd: 10, n: 240, source: 'empirical', version: 3 } } });
+    resetNorms();
+    expect(toTScore(50, 'A10')).toBe(50);
+  });
+});
 
 describe('cleanReactionTimes', () => {
   it('drops anticipations below 200ms and lapses above 4000ms', () => {

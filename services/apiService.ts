@@ -226,6 +226,15 @@ export interface JourneyNodesResponse {
 // in backend/logic/nodes.php); the frontend only keeps display metadata.
 export const getJourneyNodes = () => apiRequest<JourneyNodesResponse>('/game/nodes');
 
+export interface ScoringNormsResponse {
+  version: number;
+  norms: Record<string, { mean: number; sd: number; n: number; source: 'provisional' | 'empirical'; version: number }>;
+}
+
+// The versioned norms table (single source of truth for T-scores); applied
+// over the built-in provisional fallback via setNorms() at app bootstrap.
+export const getScoringNorms = () => apiRequest<ScoringNormsResponse>('/game/norms');
+
 export const aiGenerate = <T>(task: string, params: Record<string, unknown> = {}) => apiRequest<T>('/ai/generate', {
   method: 'POST',
   body: JSON.stringify({ task, params }),
