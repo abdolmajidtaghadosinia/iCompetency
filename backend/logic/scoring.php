@@ -1,11 +1,17 @@
 <?php
 declare(strict_types=1);
-// Provisional norms. These means/SDs are placeholders until enough real
-// runs are collected to compute empirical values (see
-// docs/assessment-quality-review.md, phase 2). A10 and A11 are on the
-// gamification-free construct measures (0-100 throughput scales) that the
-// clients now submit in payload.cognitiveRaw, not the old point totals.
-function scoring_norms():array{return['A9a'=>['mean'=>6.5,'sd'=>1.5],'A9b'=>['mean'=>75,'sd'=>15],'A9c'=>['mean'=>2.5,'sd'=>1.0],'A10'=>['mean'=>50,'sd'=>18],'A10Plus'=>['mean'=>50,'sd'=>20],'A11'=>['mean'=>50,'sd'=>18],'A12'=>['mean'=>50,'sd'=>20],'A13'=>['mean'=>60,'sd'=>20],'A14'=>['mean'=>50,'sd'=>15],'A15'=>['mean'=>50,'sd'=>15],'A18'=>['mean'=>60,'sd'=>20]];}
+// Built-in provisional norms: the seed values for the scoring_norms table and
+// the offline fallback when the table is missing (fresh install, unit context).
+// A10/A11 are on the gamification-free construct measures (0-100 throughput
+// scales) submitted in payload.cognitiveRaw, not the old point totals.
+function scoring_default_norms():array{return['A9a'=>['mean'=>6.5,'sd'=>1.5],'A9b'=>['mean'=>75,'sd'=>15],'A9c'=>['mean'=>2.5,'sd'=>1.0],'A10'=>['mean'=>50,'sd'=>18],'A10Plus'=>['mean'=>50,'sd'=>20],'A11'=>['mean'=>50,'sd'=>18],'A12'=>['mean'=>50,'sd'=>20],'A13'=>['mean'=>60,'sd'=>20],'A14'=>['mean'=>50,'sd'=>15],'A15'=>['mean'=>50,'sd'=>15],'A18'=>['mean'=>60,'sd'=>20]];}
+// Full norm rows with provenance, loaded once per request from the DB and
+// overlaid on the defaults. Any DB failure (missing table, no connection)
+// silently falls back to provisional values so scoring never breaks.
+function scoring_norms_meta(bool $reset=false):array{static $cache=null;if($reset)$cache=null;if($cache!==null)return$cache;$meta=[];foreach(scoring_default_norms()as$k=>$n)$meta[$k]=['mean'=>(float)$n['mean'],'sd'=>(float)$n['sd'],'n'=>0,'source'=>'provisional','version'=>1];try{if(class_exists('Database')){$rows=Database::pdo()->query('SELECT norm_key,mean_value,sd_value,sample_n,source,version FROM scoring_norms')->fetchAll();foreach($rows as$r){$k=(string)$r['norm_key'];if(!isset($meta[$k]))continue;$sd=(float)$r['sd_value'];if($sd<=0)continue;$meta[$k]=['mean'=>(float)$r['mean_value'],'sd'=>$sd,'n'=>(int)$r['sample_n'],'source'=>(string)$r['source'],'version'=>(int)$r['version']];}}}catch(Throwable$e){/* fall back to provisional defaults */}$cache=$meta;return$meta;}
+function scoring_norms():array{$out=[];foreach(scoring_norms_meta()as$k=>$m)$out[$k]=['mean'=>$m['mean'],'sd'=>$m['sd']];return$out;}
+function scoring_norms_version():int{$v=1;foreach(scoring_norms_meta()as$m)$v=max($v,(int)$m['version']);return$v;}
+function scoring_norms_payload():array{return['version'=>scoring_norms_version(),'norms'=>scoring_norms_meta()];}
 function probit(float $p):float{if($p>=1)$p=.999;if($p<=0)$p=.001;$a1=-39.69683028665376;$a2=220.9460984245205;$a3=-275.9285104469687;$a4=138.3577518672690;$a5=-30.66479806614716;$a6=2.506628277459239;$b1=-54.47609879822406;$b2=161.5858368580409;$b3=-155.6989798598866;$b4=66.80131188771972;$b5=-13.28068155288572;$c1=-0.007784894002430293;$c2=-0.3223964580411365;$c3=-2.400758277161838;$c4=-2.549732539343734;$c5=4.374664141464968;$c6=2.938163982698783;$d1=0.007784695709041462;$d2=0.3224671290700398;$d3=2.445134137142996;$d4=3.754408661907416;$pl=.02425;$ph=1-$pl;if($p<$pl){$q=sqrt(-2*log($p));return(((((($c1*$q+$c2)*$q+$c3)*$q+$c4)*$q+$c5)*$q+$c6)/(((($d1*$q+$d2)*$q+$d3)*$q+$d4)*$q+1));}if($p<=$ph){$q=$p-.5;$r=$q*$q;return(((((($a1*$r+$a2)*$r+$a3)*$r+$a4)*$r+$a5)*$r+$a6)*$q/((((($b1*$r+$b2)*$r+$b3)*$r+$b4)*$r+$b5)*$r+1));}$q=sqrt(-2*log(1-$p));return-(((((($c1*$q+$c2)*$q+$c3)*$q+$c4)*$q+$c5)*$q+$c6)/(((($d1*$q+$d2)*$q+$d3)*$q+$d4)*$q+1));}
 function calculate_d_prime(float $hits,float $targets,float $falseAlarms,float $nonTargets):float{$hr=$targets>0?$hits/$targets:0;$fr=$nonTargets>0?$falseAlarms/$nonTargets:0;return max(0,probit(max(.01,min(.99,$hr)))-probit(max(.01,min(.99,$fr))));}
 function calculate_stroop_score(float $rtInc,float $rtCon,float $accuracy):int{return(int)min(100,round((1000/max(50,$rtInc-$rtCon))*$accuracy*10));}
