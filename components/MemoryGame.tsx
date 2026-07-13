@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Server, Database, Radar, Play, CheckCircle2, XCircle, 
-  HelpCircle, Eye, RefreshCw, Zap 
+import {
+  Server, Database, Radar, Play, CheckCircle2, XCircle,
+  HelpCircle, Eye, RefreshCw, Zap, Heart, MousePointer2
 } from 'lucide-react';
 import { toPersianNum } from '../utils';
 import { calculateDPrime } from '../utils/scoring';
@@ -27,7 +27,11 @@ const CorsiGame: React.FC<{ onFinish: (span: number, rawScore: number) => void }
     const [lives, setLives] = useState(3); // Standard 3 strikes
     const [successCount, setSuccessCount] = useState(0); // For Staircase: 2 correct -> level up
     const [activeBlock, setActiveBlock] = useState<number | null>(null);
-    
+    // Visual-only feedback: the block just tapped (green if right, red if wrong)
+    // and how many pattern steps have played so far during the watch phase.
+    const [tapFeedback, setTapFeedback] = useState<{ idx: number; correct: boolean } | null>(null);
+    const [shown, setShown] = useState(0);
+
     // Stats
     const [maxSpan, setMaxSpan] = useState(0);
     const [totalCorrect, setTotalCorrect] = useState(0);
@@ -53,6 +57,7 @@ const CorsiGame: React.FC<{ onFinish: (span: number, rawScore: number) => void }
 
     useEffect(() => {
         if (gameState === 'display') {
+            setShown(0);
             let i = 0;
             const interval = setInterval(() => {
                 if (i >= sequence.length) {
@@ -62,6 +67,7 @@ const CorsiGame: React.FC<{ onFinish: (span: number, rawScore: number) => void }
                     return;
                 }
                 setActiveBlock(sequence[i]);
+                setShown(i + 1);
                 sfx.playHover();
                 setTimeout(() => setActiveBlock(null), 600);
                 i++;
@@ -72,12 +78,15 @@ const CorsiGame: React.FC<{ onFinish: (span: number, rawScore: number) => void }
 
     const handleBlockClick = (idx: number) => {
         if (gameState !== 'input') return;
-        
+
         sfx.playClick();
         const newUserSeq = [...userSequence, idx];
+        const correct = newUserSeq[newUserSeq.length - 1] === sequence[newUserSeq.length - 1];
+        setTapFeedback({ idx, correct });
+        setTimeout(() => setTapFeedback(f => (f && f.idx === idx ? null : f)), 350);
         setUserSequence(newUserSeq);
-        
-        if (newUserSeq[newUserSeq.length - 1] !== sequence[newUserSeq.length - 1]) {
+
+        if (!correct) {
             sfx.playError();
             handleFail();
         } else if (newUserSeq.length === sequence.length) {
@@ -141,28 +150,94 @@ const CorsiGame: React.FC<{ onFinish: (span: number, rawScore: number) => void }
         );
     }
 
+    const isWatching = gameState === 'display';
+    const progressTotal = sequence.length;
+    const progressDone = isWatching ? shown : userSequence.length;
+
     return (
-        <div className="flex flex-col items-center h-full pt-8">
-            <div className="flex justify-between w-full max-w-sm mb-8 px-4 font-bold text-slate-500">
-                <span>طول دنباله: {toPersianNum(level)}</span>
-                <span>فرصت: {lives}</span>
+        <div className="flex flex-col items-center justify-center h-full w-full bg-gradient-to-b from-slate-900 to-slate-950 px-4 py-6 relative overflow-hidden">
+            {/* Ambient grid glow */}
+            <div className="absolute inset-0 pointer-events-none opacity-60" style={{
+                backgroundImage: 'radial-gradient(circle at 50% 40%, rgba(16,185,129,0.12), transparent 55%)'
+            }}></div>
+
+            {/* HUD */}
+            <div className="relative z-10 w-full max-w-sm flex items-center justify-between mb-5">
+                <div className="flex items-center gap-2 bg-slate-800/80 border border-slate-700 rounded-full pl-3 pr-2 py-1.5">
+                    <Server size={15} className="text-emerald-400" />
+                    <span className="text-xs font-black text-slate-200">طول الگو</span>
+                    <span className="text-sm font-black text-emerald-400 tabular-nums min-w-[1.2rem] text-center">{toPersianNum(level)}</span>
+                </div>
+                <div className="flex items-center gap-1.5" aria-label="جان‌های باقی‌مانده">
+                    {Array.from({ length: 3 }).map((_, i) => (
+                        <Heart
+                            key={i}
+                            size={20}
+                            className={`transition-all duration-300 ${i < lives ? 'text-rose-500 fill-rose-500 drop-shadow-[0_0_6px_rgba(244,63,94,0.6)]' : 'text-slate-700 fill-slate-800'}`}
+                        />
+                    ))}
+                </div>
             </div>
-            <div className="grid grid-cols-4 gap-3 bg-slate-800 p-4 rounded-2xl shadow-xl">
-                {Array.from({length: GRID_SIZE}).map((_, i) => (
-                    <button
+
+            {/* Phase banner */}
+            <div className={`relative z-10 flex items-center gap-2 mb-5 px-4 py-2 rounded-full font-black text-sm border transition-colors duration-300 ${
+                isWatching
+                    ? 'bg-sky-500/10 border-sky-500/40 text-sky-300'
+                    : 'bg-emerald-500/10 border-emerald-500/40 text-emerald-300'
+            }`}>
+                {isWatching ? <Eye size={16} className="animate-pulse" /> : <MousePointer2 size={16} />}
+                {isWatching ? 'الگو را به خاطر بسپارید' : 'الگو را تکرار کنید'}
+            </div>
+
+            {/* The grid */}
+            <div className="relative z-10 grid grid-cols-4 gap-3 bg-slate-800/60 p-4 rounded-3xl shadow-2xl border border-slate-700/60 backdrop-blur-sm">
+                {Array.from({ length: GRID_SIZE }).map((_, i) => {
+                    const isActive = activeBlock === i;
+                    const inTrail = gameState === 'input' && userSequence.includes(i);
+                    const fb = tapFeedback && tapFeedback.idx === i ? tapFeedback : null;
+
+                    let stateClass = 'bg-slate-700/70 border-slate-600/40';
+                    if (fb) {
+                        stateClass = fb.correct
+                            ? 'bg-emerald-400 border-emerald-300 scale-95'
+                            : 'bg-rose-500 border-rose-400 shadow-[0_0_22px_rgba(244,63,94,0.75)] scale-95';
+                    } else if (isActive) {
+                        stateClass = 'bg-emerald-400 border-emerald-300 shadow-[0_0_28px_rgba(52,211,153,0.85)] scale-110';
+                    } else if (inTrail) {
+                        stateClass = 'bg-emerald-600/40 border-emerald-500/60';
+                    }
+
+                    return (
+                        <button
+                            key={i}
+                            disabled={gameState !== 'input'}
+                            onClick={() => handleBlockClick(i)}
+                            className={`
+                                w-14 h-14 md:w-16 md:h-16 rounded-2xl border-2 transition-all duration-200 ${stateClass}
+                                ${gameState === 'input' && !fb && !inTrail ? 'hover:border-emerald-500/50 hover:bg-slate-600/70 active:scale-95 cursor-pointer' : ''}
+                            `}
+                        />
+                    );
+                })}
+            </div>
+
+            {/* Progress dots for the current sequence */}
+            <div className="relative z-10 flex items-center gap-1.5 mt-6 min-h-[0.75rem]">
+                {Array.from({ length: progressTotal }).map((_, i) => (
+                    <span
                         key={i}
-                        disabled={gameState !== 'input'}
-                        onClick={() => handleBlockClick(i)}
-                        className={`
-                            w-14 h-14 rounded-xl transition-all duration-200
-                            ${activeBlock === i ? 'bg-emerald-400 shadow-[0_0_15px_#34d399] scale-105' : 'bg-slate-700'}
-                            ${gameState === 'input' ? 'hover:bg-slate-600 active:scale-95' : ''}
-                        `}
+                        className={`h-2 rounded-full transition-all duration-300 ${
+                            i < progressDone
+                                ? (isWatching ? 'w-5 bg-sky-400' : 'w-5 bg-emerald-400')
+                                : 'w-2 bg-slate-700'
+                        }`}
                     />
                 ))}
             </div>
-            <p className="mt-8 text-slate-400 text-sm animate-pulse">
-                {gameState === 'display' ? 'الگو را تماشا کنید...' : 'الگو را تکرار کنید'}
+            <p className="relative z-10 mt-3 text-slate-500 text-xs font-bold">
+                {isWatching
+                    ? `${toPersianNum(progressDone)} از ${toPersianNum(progressTotal)} خانه`
+                    : `${toPersianNum(progressDone)} از ${toPersianNum(progressTotal)} خانه انتخاب شد`}
             </p>
         </div>
     );
