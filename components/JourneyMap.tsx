@@ -59,11 +59,14 @@ const staticNodes: ExtendedJourneyNode[] = [
     coinReward: 50,
     position: 'center',
     x: 90, y: 50,
-    description: "شامل ۳ آزمون: مرکز عملیات (N-Back)، مسیر شبکه (Corsi) و کنفرانس (تداعی‌گر)",
+    description: "یک آزمون با ۳ بخش پشت‌سرهم: حافظه فضایی (Corsi) ← حافظه تداعی‌گر (جفت‌ها) ← حافظه فعال (N-Back)",
+    // These are the three sequential STAGES of the single MemoryGame, in the
+    // exact order the game plays them (corsi -> paired -> nback). They are not
+    // separately launchable games — the focus overlay presents them as steps.
     subNodes: [
-        { id: 'mem-1', title: 'حافظه فعال', description: 'آزمون N-Back', icon: Cpu, color: 'text-blue-500' },
-        { id: 'mem-2', title: 'حافظه فضایی', description: 'آزمون Corsi', icon: Server, color: 'text-emerald-500' },
-        { id: 'mem-3', title: 'حافظه تداعی‌گر', description: 'آزمون جفت‌ها', icon: Users, color: 'text-purple-500' }
+        { id: 'mem-1', title: 'حافظه فضایی', description: 'بخش ۱ · آزمون Corsi (به‌خاطرسپاری الگوی بلوک‌ها)', icon: Server, color: 'text-emerald-500' },
+        { id: 'mem-2', title: 'حافظه تداعی‌گر', description: 'بخش ۲ · آزمون جفت‌ها (تطبیق آیکون و رنگ)', icon: Users, color: 'text-purple-500' },
+        { id: 'mem-3', title: 'حافظه فعال', description: 'بخش ۳ · آزمون N-Back (تطابق حروف با N قبل)', icon: Cpu, color: 'text-blue-500' }
     ]
   },
   {
@@ -565,7 +568,7 @@ const JourneyMap: React.FC<Props> = ({ unlockedNodes, completedNodes, onSelectNo
                         </div>
                         <div>
                             <h2 className="text-2xl font-black text-slate-800 dark:text-white">{focusedNode.title}</h2>
-                            <p className="text-slate-500 dark:text-slate-400 text-sm font-bold">مسیر ارزیابی ریز-مهارت‌ها</p>
+                            <p className="text-slate-500 dark:text-slate-400 text-sm font-bold">یک آزمون واحد در {toPersianNum(focusedNode.subNodes?.length || 0)} بخش پشت‌سرهم</p>
                         </div>
                     </div>
 
@@ -609,7 +612,9 @@ const JourneyMap: React.FC<Props> = ({ unlockedNodes, completedNodes, onSelectNo
                     </button>
                 </div>
 
-                {/* Desktop: horizontal timeline */}
+                {/* Desktop: horizontal timeline of the test's stages.
+                    These are stages of ONE test, so nothing here is individually
+                    clickable — only the single CTA below starts the game. */}
                 <div className="hidden md:flex flex-1 items-center justify-center w-full overflow-x-auto custom-scrollbar">
                     <div className="flex items-center gap-0 px-12 pb-12 min-w-[max-content]">
 
@@ -621,29 +626,28 @@ const JourneyMap: React.FC<Props> = ({ unlockedNodes, completedNodes, onSelectNo
                         {focusedNode.subNodes.map((sub, idx) => (
                             <div key={sub.id} className="flex items-center">
 
-                                <div className={`w-32 h-1 ${idx === 0 ? 'bg-gradient-to-l from-slate-300 to-transparent' : 'bg-slate-300 dark:bg-slate-700'}`}></div>
+                                <div className={`w-28 h-1 ${idx === 0 ? 'bg-gradient-to-l from-slate-300 to-transparent' : 'bg-slate-300 dark:bg-slate-700'}`}></div>
 
-                                <div className="relative group">
-                                    <div className="w-14 h-14 rounded-full bg-white dark:bg-slate-800 border-4 border-white dark:border-slate-700 shadow-xl flex items-center justify-center relative z-20 group-hover:scale-110 transition-transform cursor-pointer" onClick={() => onSelectNode(focusedNode.view)}>
+                                <div className="relative">
+                                    {/* Stage marker with its order number */}
+                                    <div className="w-14 h-14 rounded-full bg-white dark:bg-slate-800 border-4 border-white dark:border-slate-700 shadow-xl flex items-center justify-center relative z-20">
                                         <sub.icon size={24} className={sub.color} />
+                                        <div className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[11px] font-black border-2 border-white dark:border-slate-900 shadow">
+                                            {toPersianNum(idx + 1)}
+                                        </div>
                                     </div>
 
                                     <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-6 w-56 animate-fade-in-up" style={{ animationDelay: `${idx * 100}ms` }}>
-                                        <div
-                                            className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-700 hover:-translate-y-1 transition-transform cursor-pointer group-hover:border-indigo-500 dark:group-hover:border-indigo-400 text-center"
-                                            onClick={() => onSelectNode(focusedNode.view)}
-                                        >
+                                        <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-700 text-center">
+                                            <div className="text-[10px] font-black text-indigo-500 dark:text-indigo-400 mb-1">بخش {toPersianNum(idx + 1)} از {toPersianNum(focusedNode.subNodes!.length)}</div>
                                             <div className="font-bold text-slate-700 dark:text-slate-200 mb-1">{sub.title}</div>
-                                            <p className="text-[10px] text-slate-500 dark:text-slate-400 mb-3 leading-relaxed">{sub.description}</p>
-                                            <button className="w-full py-1.5 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-                                                <PlayCircle size={12} /> شروع
-                                            </button>
+                                            <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed">{sub.description}</p>
                                         </div>
                                         <div className="w-0.5 h-6 bg-slate-300 dark:bg-slate-600 mx-auto"></div>
                                     </div>
                                 </div>
 
-                                <div className={`w-32 h-1 ${idx === focusedNode.subNodes!.length - 1 ? 'bg-gradient-to-r from-slate-300 to-transparent' : 'bg-slate-300 dark:bg-slate-700'}`}></div>
+                                <div className={`w-28 h-1 ${idx === focusedNode.subNodes!.length - 1 ? 'bg-gradient-to-r from-slate-300 to-transparent' : 'bg-slate-300 dark:bg-slate-700'}`}></div>
                             </div>
                         ))}
 

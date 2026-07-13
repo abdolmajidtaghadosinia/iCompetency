@@ -73,7 +73,7 @@ const MiniGameHub: React.FC<Props> = ({ onSelectGame, user }) => {
       id: AppView.MINIGAME_MEMORY,
       code: "A9",
       title: "حافظه جامع (Memory)",
-      description: "شامل ۳ آزمون: شبکه امنیتی (Corsi)، جفت‌های پنهان و رادار تمرکز (N-Back).",
+      description: "یک آزمون در ۳ بخش پیوسته: شبکه امنیتی (Corsi)، جفت‌های پنهان و رادار تمرکز (N-Back).",
       icon: <Layers className="w-8 h-8 text-pink-600 dark:text-pink-400" />,
       gradient: "from-pink-100 to-rose-50 dark:from-pink-900/40 dark:to-rose-900/20",
       accent: "text-pink-600 dark:text-pink-400",
