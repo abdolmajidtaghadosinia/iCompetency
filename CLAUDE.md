@@ -64,7 +64,8 @@ All 14+ mini-games follow the same shape: **intro → play → score → `onComp
 
 - Vitest covers `utils/scoring.ts` (`utils/scoring.test.ts`) — run `npm test` before touching scoring logic.
 - `python3 verify_app.py` is a Playwright smoke test (console errors + startup render). Run it against `npm run dev` before finishing UI work whenever a browser is available.
-- There's no PHP test suite yet. Sanity-check backend changes against `backend/api_test.http`.
+- `php backend/validate_scoring.php` asserts the whole scoring contract (~200 checks): norm sanity, the hand-synced norm copies (schema.sql seed / `DEFAULT_NORMS` / calibration targets), frontend-enum-vs-allowlist drift, cognitive-raw mappings/caps/best-attempt, skill mappings, index weights, Big Five validity flag, and competency-matrix invariants. Run it after touching anything in that pipeline.
+- Beyond that there's no PHP test suite. Sanity-check backend changes against `backend/api_test.http`.
 - Commit only after `npm run build` and `npm test` both pass.
 
 ## Known gaps
