@@ -9,12 +9,15 @@ interface ResumeData {
   bigFiveData: { title: string; score: number }[];
   careerProfiles: { title: string; fitScore: number }[];
   methodology?: { title: string; score: number; color: string; dims: { label: string; value: number }[] }[];
+  competencies?: { title: string; score: number; label: string; coverage: number; insufficient: boolean }[];
   date: string;
 }
 
 export async function generateResumeImage(data: ResumeData): Promise<Blob> {
   const WIDTH = 1200;
-  const HEIGHT = 1700;
+  // The competency matrix adds one more stacked section, so give the image
+  // extra height when it's present (footer stays HEIGHT-relative).
+  const HEIGHT = data.competencies && data.competencies.length > 0 ? 2000 : 1700;
 
   const canvas = document.createElement('canvas');
   canvas.width = WIDTH;
@@ -247,6 +250,7 @@ export async function generateResumeImage(data: ResumeData): Promise<Blob> {
   }
 
   // === METHODOLOGY SECTION ===
+  let sectionBottom = careerBottomY;
   if (data.methodology && data.methodology.length > 0) {
     const mY = careerBottomY + 30;
     ctx.textAlign = 'right';
@@ -300,6 +304,56 @@ export async function generateResumeImage(data: ResumeData): Promise<Blob> {
           ctx.fill();
         }
       });
+    });
+    const maxDims = Math.max(...data.methodology.slice(0, 3).map(m => m.dims.length), 0);
+    sectionBottom = mY + 25 + 62 + maxDims * 30 + 10;
+  }
+
+  // === COMPETENCY MATRIX SECTION ===
+  if (data.competencies && data.competencies.length > 0) {
+    const compY = sectionBottom + 40;
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#e2e8f0';
+    ctx.font = 'bold 28px Tahoma, sans-serif';
+    ctx.fillText('ماتریس شایستگی سازمانی', WIDTH - 60, compY);
+
+    const rowStartY = compY + 30;
+    const rowGap = 46;
+    const cBarX = 380;
+    const cBarW = 420;
+
+    data.competencies.slice(0, 6).forEach((c, idx) => {
+      const y = rowStartY + idx * rowGap;
+
+      // Title (RTL)
+      ctx.fillStyle = '#cbd5e1';
+      ctx.font = 'bold 16px Tahoma, sans-serif';
+      ctx.textAlign = 'right';
+      ctx.fillText(c.title, WIDTH - 60, y + 22);
+
+      // Bar
+      roundRect(cBarX, y + 8, cBarW, 16, 8);
+      ctx.fillStyle = 'rgba(255,255,255,0.05)';
+      ctx.fill();
+      const fillW = Math.max(0, (c.score / 100) * cBarW);
+      if (fillW > 0) {
+        roundRect(cBarX, y + 8, fillW, 16, 8);
+        ctx.fillStyle = c.insufficient ? '#f59e0b' : '#6366f1';
+        ctx.fill();
+      }
+
+      // Score + qualifier
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 17px monospace';
+      ctx.textAlign = 'left';
+      ctx.fillText(String(c.score), cBarX + cBarW + 18, y + 22);
+
+      ctx.fillStyle = c.insufficient ? '#f59e0b' : '#64748b';
+      ctx.font = 'bold 12px Tahoma, sans-serif';
+      ctx.fillText(
+        c.insufficient ? `${c.label} · شواهد ناکافی` : `${c.label} · پوشش ${Math.round(c.coverage * 100)}%`,
+        60, y + 22
+      );
     });
   }
 

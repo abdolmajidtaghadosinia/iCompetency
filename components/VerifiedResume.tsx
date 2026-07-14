@@ -4,7 +4,8 @@ import { UserProfile } from '../types';
 import {
   ShieldCheck, Printer, Share2, Loader2,
   Layers, Calculator, Zap, Box, Compass, Eye, LayoutGrid,
-  Target, Microscope, Sparkles, Hexagon, Briefcase, Brain, Search, Puzzle
+  Target, Microscope, Sparkles, Hexagon, Briefcase, Brain, Search, Puzzle,
+  Award, AlertTriangle
 } from 'lucide-react';
 
 // Methodology assessment display config (keys match the server payload subjects).
@@ -14,6 +15,19 @@ const METH_CONFIG: Record<string, { title: string; icon: any; color: string; bg:
   'cynefin': { title: 'تصمیم‌گیری زمینه‌مند (Cynefin)', icon: Brain,  color: 'text-violet-600 dark:text-violet-400',   bg: 'bg-violet-500',  hex: '#8b5cf6' },
 };
 const METH_ORDER = ['5whys', 'swot', 'cynefin'];
+
+// Evidence-layer display config for the competency matrix. The layer keys
+// match the server's calculate_competencies() output.
+const LAYER_CONFIG: Record<string, { label: string; dot: string; bar: string }> = {
+  cognitive:   { label: 'شناختی',      dot: 'bg-sky-500',     bar: 'bg-sky-500' },
+  personality: { label: 'شخصیتی',      dot: 'bg-violet-500',  bar: 'bg-violet-500' },
+  methodology: { label: 'روش‌شناختی',  dot: 'bg-emerald-500', bar: 'bg-emerald-500' },
+};
+const competencyScoreColor = (s: number) =>
+  s >= 75 ? 'text-purple-600 bg-purple-100 dark:bg-purple-900/30 dark:text-purple-300'
+  : s >= 60 ? 'text-emerald-600 bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-300'
+  : s >= 40 ? 'text-blue-600 bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300'
+  : 'text-amber-600 bg-amber-100 dark:bg-amber-900/30 dark:text-amber-300';
 const DIM_LABELS: Record<string, string> = {
   domainAccuracy: 'تشخیص دامنه', responseAccuracy: 'انتخاب واکنش',
   classificationAccuracy: 'دقت طبقه‌بندی', internalExternalDiscrimination: 'تفکیک داخلی/خارجی',
@@ -132,6 +146,13 @@ const VerifiedResume: React.FC<Props> = ({ user, isDarkMode = false }) => {
           color: m.cfg.hex,
           dims: Object.entries(m.dimensions ?? {}).map(([k, v]) => ({ label: DIM_LABELS[k] ?? k, value: v })),
         })),
+        competencies: scoredCompetencies.map(c => ({
+          title: c.title,
+          score: c.score as number,
+          label: c.label ?? '',
+          coverage: c.coverage,
+          insufficient: c.insufficient,
+        })),
         date: currentDate,
       });
     } catch (err) {
@@ -163,6 +184,12 @@ const VerifiedResume: React.FC<Props> = ({ user, isDarkMode = false }) => {
 
   const methResults = user.methodologyResults ?? {};
   const methItems = METH_ORDER.filter(k => methResults[k]).map(k => ({ key: k, ...methResults[k], cfg: METH_CONFIG[k] }));
+
+  // Server-computed competency matrix. The web view shows every competency
+  // (including not-yet-measured ones, to invite completion); print/share only
+  // include those with an actual score.
+  const competencies = user.competencies ?? [];
+  const scoredCompetencies = competencies.filter(c => c.score !== null);
 
   const bigFiveData = user.bigFive ? [
     { title: 'گشودگی (Openness)', score: user.bigFive.Openness, color: 'text-blue-500', bg: 'bg-blue-500' },
@@ -217,6 +244,31 @@ const VerifiedResume: React.FC<Props> = ({ user, isDarkMode = false }) => {
                     ))}
                 </div>
             </section>
+
+            {/* Competency matrix */}
+            {scoredCompetencies.length > 0 && (
+                <section className="mb-7">
+                    <h2 className="text-lg font-black text-slate-900 mb-3 border-b-2 border-slate-200 pb-1.5">ماتریس شایستگی سازمانی</h2>
+                    <div className="grid grid-cols-3 gap-3">
+                        {scoredCompetencies.map(comp => (
+                            <div key={comp.key} className="border border-slate-200 rounded-lg p-3">
+                                <div className="flex justify-between items-start mb-1.5">
+                                    <span className="text-xs font-black text-slate-800 leading-tight">{comp.title}</span>
+                                    <span className="text-lg font-black text-slate-900 shrink-0">{toPersianNum(comp.score as number)}</span>
+                                </div>
+                                <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden mb-1.5">
+                                    <div className="h-full bg-indigo-600" style={{ width: `${comp.score}%` }} />
+                                </div>
+                                <div className="flex justify-between text-[9px] font-bold text-slate-500">
+                                    <span>{comp.label}{comp.insufficient ? ' · شواهد ناکافی' : ''}</span>
+                                    <span>پوشش {toPersianNum(Math.round(comp.coverage * 100))}٪</span>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                    <p className="text-[9px] text-slate-400 font-bold mt-2">هر شایستگی ترکیب وزنی سه لایه شواهد است: توانایی شناختی (T-Score)، آمادگی شخصیتی (Big Five) و مهارت کاربردی (آزمون‌های روش‌شناختی). «پوشش» سهم شواهد موجود از وزن کامل مدل است.</p>
+                </section>
+            )}
 
             {/* Methodology assessments */}
             {methItems.length > 0 && (
@@ -313,6 +365,89 @@ const VerifiedResume: React.FC<Props> = ({ user, isDarkMode = false }) => {
               </button>
           </div>
       </header>
+
+      {/* --- Competency Matrix (org-facing summary) --- */}
+      {competencies.length > 0 && (
+        <div className="mb-8 animate-fade-in-up">
+          <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-md rounded-3xl p-8 shadow-soft dark:shadow-none border border-slate-100 dark:border-slate-700">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg">
+                  <Award className="text-white" size={24} />
+                </div>
+                <div>
+                  <h3 className="text-2xl font-black text-slate-900 dark:text-white">ماتریس شایستگی</h3>
+                  <p className="text-slate-400 dark:text-slate-500 font-bold text-sm">ترکیب وزنی سه لایه شواهد: توانایی شناختی، آمادگی شخصیتی و مهارت کاربردی</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 shrink-0">
+                {Object.entries(LAYER_CONFIG).map(([k, cfg]) => (
+                  <span key={k} className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                    <span className={`w-2 h-2 rounded-full ${cfg.dot}`}></span>{cfg.label}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {competencies.map(comp => (
+                <div key={comp.key} className="bg-slate-50 dark:bg-slate-700/40 rounded-2xl p-5 border border-slate-100 dark:border-slate-600 flex flex-col">
+                  <div className="flex items-start justify-between gap-2 mb-1.5">
+                    <h4 className="font-black text-slate-800 dark:text-white">{comp.title}</h4>
+                    {comp.score !== null ? (
+                      <div className="text-center shrink-0">
+                        <div className="text-3xl font-black text-slate-800 dark:text-white tabular-nums leading-none">{toPersianNum(comp.score)}</div>
+                        <div className="text-[9px] text-slate-400 font-bold">از ۱۰۰</div>
+                      </div>
+                    ) : (
+                      <span className="text-xs font-bold text-slate-400 dark:text-slate-500 shrink-0 mt-1">سنجیده نشده</span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium leading-relaxed mb-3 min-h-[2rem]">{comp.description}</p>
+
+                  {comp.score !== null && comp.label && (
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-black ${competencyScoreColor(comp.score)}`}>{comp.label}</span>
+                      {comp.insufficient && (
+                        <span className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
+                          <AlertTriangle size={10} /> شواهد ناکافی
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="space-y-2 mt-auto">
+                    {comp.evidence.map((ev, i) => {
+                      const lcfg = LAYER_CONFIG[ev.layer];
+                      return (
+                        <div key={i}>
+                          <div className="flex justify-between items-center text-[10px] font-bold mb-0.5">
+                            <span className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+                              <span className={`w-1.5 h-1.5 rounded-full ${lcfg?.dot ?? 'bg-slate-400'}`}></span>
+                              {ev.label}
+                              <span className="text-slate-300 dark:text-slate-500">×{toPersianNum(Math.round(ev.weight * 100))}٪</span>
+                            </span>
+                            <span className="text-slate-400 tabular-nums">{ev.available && ev.score !== null ? toPersianNum(ev.score) : '—'}</span>
+                          </div>
+                          <div className="h-1 bg-slate-200 dark:bg-slate-600 rounded-full overflow-hidden">
+                            {ev.available && ev.score !== null && (
+                              <div className={`h-full ${lcfg?.bar ?? 'bg-slate-400'} rounded-full transition-all duration-1000`} style={{ width: `${Math.max(0, Math.min(100, ev.score))}%` }} />
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="mt-3 pt-2 border-t border-slate-100 dark:border-slate-600 text-[9px] font-bold text-slate-400 dark:text-slate-500">
+                    پوشش شواهد: {toPersianNum(Math.round(comp.coverage * 100))}٪ از وزن مدل
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* --- NEW: Career Profiling Section --- */}
       {user.bigFive && (

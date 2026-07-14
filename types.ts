@@ -61,6 +61,29 @@ export interface UserProfile {
     dimensions: Record<string, number>;
     updatedAt?: string;
   }>;
+  // Server-computed competency matrix (docs/competency-matrix.md): each
+  // org-facing competency blends cognitive T-scores, Big Five and methodology
+  // rubrics. The frontend only renders this — it never computes it.
+  competencies?: CompetencyResult[];
+}
+
+export interface CompetencyEvidence {
+  layer: 'cognitive' | 'personality' | 'methodology';
+  label: string;
+  weight: number;
+  available: boolean;
+  score: number | null;
+}
+
+export interface CompetencyResult {
+  key: string;
+  title: string;
+  description: string;
+  score: number | null;   // 0-100, null when no evidence layer is present yet
+  coverage: number;       // 0-1 share of intended evidence weight available
+  insufficient: boolean;  // coverage < 0.5 — render as tentative, not a verdict
+  label: string | null;
+  evidence: CompetencyEvidence[];
 }
 
 export interface SkillMatrix {
