@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-function game_allowed_views():array{return['MINIGAME_MEMORY','MINIGAME_MATH','MINIGAME_PATTERN','MINIGAME_SPEED','MINIGAME_VISUALIZATION','MINIGAME_ORIENTATION','MINIGAME_STROOP','MINIGAME_MULTITASK','MINIGAME_FACTFINDING','MINIGAME_5WHYS','MINIGAME_SWOT','MINIGAME_CYNEFIN','MINIGAME_ROLEPLAY'];}
+function game_allowed_views():array{return['MINIGAME_MEMORY','MINIGAME_MATH','MINIGAME_PATTERN','MINIGAME_SPEED','MINIGAME_VISUALIZATION','MINIGAME_ORIENTATION','MINIGAME_STROOP','MINIGAME_MULTITASK','MINIGAME_FACTFINDING','MINIGAME_5WHYS','MINIGAME_SWOT','MINIGAME_CYNEFIN','MINIGAME_SJT','MINIGAME_ROLEPLAY'];}
 // Plausibility ceiling per game: the highest raw score the real client can
 // produce (plus headroom). Most games normalize to 0-100 before submitting;
 // Math submits its weighted point total and Memory a summed stage total.

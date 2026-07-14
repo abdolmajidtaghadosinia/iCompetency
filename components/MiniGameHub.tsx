@@ -3,7 +3,7 @@ import React from 'react';
 import { AppView, UserProfile } from '../types';
 import {
   Layers, Calculator, Zap, Box, Compass, Eye, LayoutGrid, BrainCircuit, Lock, CheckCircle2, Play, Grid, Search,
-  HelpCircle, Target, Network
+  HelpCircle, Target, Network, Users
 } from 'lucide-react';
 import { toPersianNum } from '../utils';
 
@@ -214,6 +214,17 @@ const MiniGameHub: React.FC<Props> = ({ onSelectGame, user }) => {
       accent: "text-violet-600 dark:text-violet-400",
       bar: "bg-violet-500",
       progress: getProgress('decisionMaking')
+    },
+    {
+      id: AppView.MINIGAME_SJT,
+      code: "SJT",
+      title: "قضاوت موقعیتی بین‌فردی",
+      description: "انتخاب مؤثرترین و کم‌اثرترین اقدام در موقعیت‌های واقعی تعامل با همکاران.",
+      icon: <Users className="w-8 h-8 text-teal-600 dark:text-teal-400" />,
+      gradient: "from-teal-100 to-cyan-50 dark:from-teal-900/40 dark:to-cyan-900/20",
+      accent: "text-teal-600 dark:text-teal-400",
+      bar: "bg-teal-500",
+      progress: getProgress('teamwork')
     }
   ];
 

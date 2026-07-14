@@ -13,7 +13,8 @@ function ai_allowed_tasks(): array
 {
     return [
         'generateScenario', 'evaluateSession', 'getCoachingTip', 'generateFiveWhysData',
-        'validateTextAnswer', 'generateSwotData', 'generateCynefinData', 'generateFactFindingScenario'
+        'validateTextAnswer', 'generateSwotData', 'generateCynefinData', 'generateFactFindingScenario',
+        'generateSjtData'
     ];
 }
 
@@ -116,6 +117,7 @@ function ai_task_spec(string $task, array $params): array
     if ($task === 'validateTextAnswer') return ai_spec_validate_text($params);
     if ($task === 'generateSwotData') return ai_spec_swot();
     if ($task === 'generateCynefinData') return ai_spec_cynefin();
+    if ($task === 'generateSjtData') return ai_spec_sjt();
     return ai_spec_fact_finding();
 }
 
@@ -177,6 +179,55 @@ function ai_spec_cynefin(): array
     $opt = schema_object(['text'=>str_schema(),'isCorrect'=>bool_schema(),'feedback'=>str_schema()], ['text','isCorrect','feedback']);
     $sc = schema_object(['description'=>str_schema(),'correctDomain'=>str_schema(),'options'=>schema_array($opt)], ['description','correctDomain','options']);
     return ['prompt'=>'Generate 5 Persian Cynefin scenarios with options and feedback. Return JSON only.', 'schema'=>schema_object(['scenarios'=>schema_array($sc)], ['scenarios']), 'fallback'=>cynefin_fallback()];
+}
+
+function ai_spec_sjt(): array
+{
+    $opt = schema_object(['text'=>str_schema(),'effectiveness'=>int_schema(),'feedback'=>str_schema()], ['text','effectiveness','feedback']);
+    $sc = schema_object(['context'=>str_schema(),'dimension'=>str_schema(),'options'=>schema_array($opt)], ['context','dimension','options']);
+    $prompt = 'Generate a Persian (Farsi) interpersonal Situational Judgment Test for the workplace. Return JSON only. ALL human-readable text in fluent, natural Persian.'
+        ."\n- scenarios: EXACTLY 6 scenarios, exactly 2 per dimension. dimension MUST be exactly one of: conflictManagement, teamCommunication, empathySupport."
+        ."\n- each scenario: context of 2-4 Persian sentences describing a realistic, specific office situation between colleagues (use first person: شما...), with concrete detail — no abstract puzzles."
+        ."\n- each scenario has EXACTLY 4 options (concrete actions in first person), each with a UNIQUE effectiveness integer 0,1,2,3 (3 = most effective professional action, 0 = most harmful) and feedback (1-2 Persian sentences explaining the interpersonal consequence of that action)."
+        ."\n- Options must ALL sound plausible to a careless reader; effectiveness differences should come from interpersonal consequences (trust, face-saving, escalation, clarity), not from one option being obviously silly."
+        ."\n- Avoid options that merely defer (\"ask the manager\") as the best answer more than once.";
+    return ['prompt'=>$prompt, 'schema'=>schema_object(['scenarios'=>schema_array($sc)], ['scenarios']), 'fallback'=>sjt_fallback()];
+}
+
+function sjt_fallback(): array
+{
+    return ['scenarios'=>[
+        [
+            'context'=>'در جلسه هفتگی، همکارتان ایده‌ای را که هفته پیش به‌طور خصوصی با او در میان گذاشته بودید، به نام خودش ارائه می‌کند و مدیر از او تعریف می‌کند.',
+            'dimension'=>'conflictManagement',
+            'options'=>[
+                ['text'=>'همان‌جا وسط جلسه می‌گویم که این ایده متعلق به من بوده است.','effectiveness'=>1,'feedback'=>'دفاع از حق در لحظه، اما تقابل علنی همکار را در موضع دفاعی می‌گذارد و جلسه را متشنج می‌کند.'],
+                ['text'=>'بعد از جلسه به‌طور خصوصی با همکارم صحبت می‌کنم و انتظار خودم برای ذکر نامم در ادامه کار را شفاف می‌گویم.','effectiveness'=>3,'feedback'=>'مسئله را مستقیم اما محترمانه و بدون تخریب رابطه حل می‌کنید و مرز روشنی برای آینده می‌گذارید.'],
+                ['text'=>'چیزی نمی‌گویم اما از این به بعد هیچ ایده‌ای را با او در میان نمی‌گذارم.','effectiveness'=>2,'feedback'=>'از تنش جلوگیری می‌شود اما مسئله حل نشده می‌ماند و اعتماد بی‌سروصدا از بین می‌رود.'],
+                ['text'=>'ماجرا را با چند همکار دیگر در میان می‌گذارم تا همه بدانند او ایده‌دزد است.','effectiveness'=>0,'feedback'=>'غیبت سازمانی اعتبار خودتان را هم خدشه‌دار می‌کند و تعارض را به کل تیم سرایت می‌دهد.'],
+            ],
+        ],
+        [
+            'context'=>'مسئول تحویل بخشی از پروژه‌اید و متوجه می‌شوید خروجی همکارتان که ورودی کار شماست، دو روز دیرتر از موعد آماده می‌شود. مهلت نهایی مشتری قابل تغییر نیست.',
+            'dimension'=>'teamCommunication',
+            'options'=>[
+                ['text'=>'فوراً با همکارم صحبت می‌کنم، علت تأخیر را می‌پرسم و با هم برنامه جبرانی و اطلاع‌رسانی به مدیر را تنظیم می‌کنیم.','effectiveness'=>3,'feedback'=>'شفافیت زودهنگام + حل مشترک؛ هم ریسک پروژه مدیریت می‌شود هم رابطه کاری سالم می‌ماند.'],
+                ['text'=>'به مدیر پروژه ایمیل می‌زنم که تأخیر پروژه به خاطر همکارم است تا مسئولیت من نشود.','effectiveness'=>1,'feedback'=>'خودتان را بیمه می‌کنید اما بدون گفتگو با همکار، اعتماد تیم را می‌شکنید و مسئله همچنان حل نشده است.'],
+                ['text'=>'سکوت می‌کنم و سعی می‌کنم با شب‌کاری، تأخیر او را خودم جبران کنم.','effectiveness'=>2,'feedback'=>'فداکاری کوتاه‌مدت، اما ریسک واقعی پروژه از دید تیم پنهان می‌ماند و الگوی ناسالمی ساخته می‌شود.'],
+                ['text'=>'کار خودم را طبق برنامه اولیه تحویل می‌دهم و می‌گویم بخش ناقص به من ربطی ندارد.','effectiveness'=>0,'feedback'=>'مرزکشی خشک در لحظه بحران، شکست تیم را تضمین می‌کند؛ مشتری خروجی کامل می‌خواهد نه سهم شما.'],
+            ],
+        ],
+        [
+            'context'=>'همکار صمیمی‌تان که همیشه پرانرژی بود، دو هفته است ساکت شده، در جلسات مشارکت نمی‌کند و امروز متوجه شدید یک خطای غیرمعمول و بزرگ در کارش داشته است.',
+            'dimension'=>'empathySupport',
+            'options'=>[
+                ['text'=>'در یک فرصت خلوت و بدون اشاره به خطا، حالش را می‌پرسم و می‌گویم اگر کمکی از دستم بربیاید در کنارش هستم.','effectiveness'=>3,'feedback'=>'حمایت انسانی قبل از قضاوت؛ فضای امن می‌سازد تا اگر مشکلی هست خودش مطرح کند.'],
+                ['text'=>'خطای کارش را همین حالا به مدیر گزارش می‌کنم؛ احساسات نباید کیفیت کار را توجیه کند.','effectiveness'=>0,'feedback'=>'گزارش بدون هیچ گفتگویی، فردی را که احتمالاً در شرایط سخت است له می‌کند و اعتماد تیم را می‌سوزاند.'],
+                ['text'=>'به او می‌گویم خطایش را دیده‌ام و بهتر است قبل از اینکه کسی بفهمد سریع اصلاحش کند.','effectiveness'=>2,'feedback'=>'هوای او را دارید اما فقط به خطا می‌پردازید؛ علت اصلی (حال او) همچنان بی‌پاسخ می‌ماند.'],
+                ['text'=>'دخالت نمی‌کنم؛ مسائل شخصی افراد به محیط کار ربطی ندارد.','effectiveness'=>1,'feedback'=>'احترام به حریم شخصی خوب است، اما بی‌تفاوتی کامل به تغییر آشکار یک هم‌تیمی، حمایت تیمی را از بین می‌برد.'],
+            ],
+        ],
+    ]];
 }
 
 function ai_spec_fact_finding(): array

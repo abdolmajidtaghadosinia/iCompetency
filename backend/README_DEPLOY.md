@@ -142,6 +142,7 @@ Taskهای مجاز:
 - `generateSwotData`
 - `generateCynefinData`
 - `generateFactFindingScenario`
+- `generateSjtData`
 
 کلید AvalAI فقط در `config.php` می‌ماند. بکاند از endpoint سازگار با OpenAI یعنی `/v1/chat/completions` روی `https://api.avalai.ir/v1` استفاده می‌کند و مدل پیش‌فرض `gemini-2.5-flash-lite` است. اگر cURL یا AvalAI خطا بدهد، API fallback معتبر برمی‌گرداند.
 

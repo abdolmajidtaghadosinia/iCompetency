@@ -1,4 +1,4 @@
-import { Scenario, EvaluationResult, UserResponse, UserProfile, FiveWhysData, SwotData, CynefinData, FactFindingScenario } from "../types";
+import { Scenario, EvaluationResult, UserResponse, UserProfile, FiveWhysData, SwotData, CynefinData, FactFindingScenario, SjtData } from "../types";
 import { aiGenerate } from "./apiService";
 
 export const generateScenario = async (
@@ -50,6 +50,10 @@ export const generateSwotData = async (): Promise<SwotData> => {
 
 export const generateCynefinData = async (): Promise<CynefinData> => {
   return aiGenerate<CynefinData>('generateCynefinData');
+};
+
+export const generateSjtData = async (): Promise<SjtData> => {
+  return aiGenerate<SjtData>('generateSjtData');
 };
 
 export const generateFactFindingScenario = async (): Promise<FactFindingScenario> => {

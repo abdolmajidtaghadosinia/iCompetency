@@ -173,6 +173,7 @@ export enum AppView {
   MINIGAME_5WHYS = 'MINIGAME_5WHYS',
   MINIGAME_SWOT = 'MINIGAME_SWOT',
   MINIGAME_CYNEFIN = 'MINIGAME_CYNEFIN',
+  MINIGAME_SJT = 'MINIGAME_SJT',
   
   // Cognitive Games (Razi Model A9-A15)
   MINIGAME_MEMORY = 'MINIGAME_MEMORY',      // A9
@@ -231,6 +232,20 @@ export interface CynefinData {
     description: string;
     correctDomain: string; // Simple, Complicated, etc.
     options: { text: string; isCorrect: boolean; feedback: string }[]; // Behavioral options
+  }[];
+  _fallback?: boolean;
+}
+
+// Interpersonal Situational Judgment Test. Each scenario's options carry a
+// unique effectiveness rank 0-3 (3 = best action, 0 = worst); the player
+// picks the most AND least effective action (classic SJT format).
+export type SjtDimension = 'conflictManagement' | 'teamCommunication' | 'empathySupport';
+
+export interface SjtData {
+  scenarios: {
+    context: string;
+    dimension: string; // one of SjtDimension; unknown values are canonicalized
+    options: { text: string; effectiveness: number; feedback: string }[];
   }[];
   _fallback?: boolean;
 }

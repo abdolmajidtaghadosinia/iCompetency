@@ -66,7 +66,11 @@ function competency_matrix():array{return[
 'stressResilience'=>['title'=>'عملکرد زیر فشار','description'=>'حفظ کیفیت تصمیم و اجرا وقتی بار کاری و فشار بالا می‌رود','sources'=>[
  ['layer'=>'personality','key'=>'Neuroticism','label'=>'ثبات هیجانی','weight'=>.45],
  ['layer'=>'cognitive','keys'=>['A15'],'label'=>'مدیریت همزمان زیر فشار (A15)','weight'=>.30],
- ['layer'=>'cognitive','keys'=>['A14'],'label'=>'بازداری پاسخ (A14)','weight'=>.25]]]];}
+ ['layer'=>'cognitive','keys'=>['A14'],'label'=>'بازداری پاسخ (A14)','weight'=>.25]]],
+'collaboration'=>['title'=>'همکاری و تعامل','description'=>'کار مؤثر با دیگران: مدیریت تعارض، ارتباط شفاف و حمایت از تیم','sources'=>[
+ ['layer'=>'methodology','key'=>'sjt','label'=>'قضاوت موقعیتی بین‌فردی (SJT)','weight'=>.50],
+ ['layer'=>'personality','key'=>'Agreeableness','label'=>'توافق‌پذیری','weight'=>.30],
+ ['layer'=>'personality','key'=>'Extraversion','label'=>'برون‌گرایی','weight'=>.20]]]];}
 // Response-validity flag for the Big Five self-report. The client submits
 // raw indicators (attention-check result, consistency-pair diffs, per-item
 // response times); the thresholds and verdict live here so the client can't

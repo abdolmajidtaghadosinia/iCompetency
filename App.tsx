@@ -15,6 +15,7 @@ import Toast, { ToastData } from './components/Toast';
 import FiveWhysGame from './components/FiveWhysGame';
 import SwotGame from './components/SwotGame';
 import CynefinGame from './components/CynefinGame';
+import SjtGame from './components/SjtGame';
 
 // Cognitive Games (Razi Model A9-A15)
 import MemoryGame from './components/MemoryGame';
@@ -60,6 +61,7 @@ const VIEW_PATHS: Record<AppView, string> = {
   [AppView.MINIGAME_5WHYS]: '/games/5whys',
   [AppView.MINIGAME_SWOT]: '/games/swot',
   [AppView.MINIGAME_CYNEFIN]: '/games/cynefin',
+  [AppView.MINIGAME_SJT]: '/games/sjt',
   [AppView.MINIGAME_MEMORY]: '/games/memory',
   [AppView.MINIGAME_MATH]: '/games/math',
   [AppView.MINIGAME_SPEED]: '/games/speed',
@@ -394,6 +396,7 @@ function App() {
               <Route path={VIEW_PATHS[AppView.MINIGAME_5WHYS]} element={<FiveWhysGame onExit={() => changeView(AppView.MINIGAME_HUB)} onComplete={(s, payload) => handleMiniGameComplete(s, '', AppView.MINIGAME_5WHYS, payload)} />} />
               <Route path={VIEW_PATHS[AppView.MINIGAME_SWOT]} element={<SwotGame onExit={() => changeView(AppView.MINIGAME_HUB)} onComplete={(s, payload) => handleMiniGameComplete(s, '', AppView.MINIGAME_SWOT, payload)} />} />
               <Route path={VIEW_PATHS[AppView.MINIGAME_CYNEFIN]} element={<CynefinGame onExit={() => changeView(AppView.MINIGAME_HUB)} onComplete={(s, payload) => handleMiniGameComplete(s, '', AppView.MINIGAME_CYNEFIN, payload)} />} />
+              <Route path={VIEW_PATHS[AppView.MINIGAME_SJT]} element={<SjtGame onExit={() => changeView(AppView.MINIGAME_HUB)} onComplete={(s, payload) => handleMiniGameComplete(s, '', AppView.MINIGAME_SJT, payload)} />} />
 
               <Route path="*" element={<Navigate to={VIEW_PATHS[AppView.DASHBOARD]} replace />} />
             </Routes>

@@ -23,7 +23,7 @@ interface GameShellProps {
   children: React.ReactNode;
   gameState: 'intro' | 'playing' | 'paused' | 'finished';
   setGameState: (state: 'intro' | 'playing' | 'paused' | 'finished') => void;
-  colorTheme: 'blue' | 'emerald' | 'rose' | 'amber' | 'purple' | 'indigo';
+  colorTheme: 'blue' | 'emerald' | 'rose' | 'amber' | 'purple' | 'indigo' | 'teal';
 }
 
 const colorMap = {
@@ -33,6 +33,7 @@ const colorMap = {
   amber: { bg: 'bg-amber-50', primary: 'bg-amber-600', text: 'text-amber-600', border: 'border-amber-200', light: 'bg-amber-100', hover: 'hover:bg-amber-700', ring: 'ring-amber-300' },
   purple: { bg: 'bg-purple-50', primary: 'bg-purple-600', text: 'text-purple-600', border: 'border-purple-200', light: 'bg-purple-100', hover: 'hover:bg-purple-700', ring: 'ring-purple-300' },
   indigo: { bg: 'bg-indigo-50', primary: 'bg-indigo-600', text: 'text-indigo-600', border: 'border-indigo-200', light: 'bg-indigo-100', hover: 'hover:bg-indigo-700', ring: 'ring-indigo-300' },
+  teal: { bg: 'bg-teal-50', primary: 'bg-teal-600', text: 'text-teal-600', border: 'border-teal-200', light: 'bg-teal-100', hover: 'hover:bg-teal-700', ring: 'ring-teal-300' },
 };
 
 const GameShell: React.FC<GameShellProps> = ({

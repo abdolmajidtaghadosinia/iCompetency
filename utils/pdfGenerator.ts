@@ -16,8 +16,9 @@ interface ResumeData {
 export async function generateResumeImage(data: ResumeData): Promise<Blob> {
   const WIDTH = 1200;
   // The competency matrix adds one more stacked section, so give the image
-  // extra height when it's present (footer stays HEIGHT-relative).
-  const HEIGHT = data.competencies && data.competencies.length > 0 ? 2000 : 1700;
+  // extra height when it's present (footer stays HEIGHT-relative). Sized for
+  // the worst case: 4 methodology cards (2 rows) + up to 8 competency rows.
+  const HEIGHT = data.competencies && data.competencies.length > 0 ? 2200 : 1700;
 
   const canvas = document.createElement('canvas');
   canvas.width = WIDTH;
@@ -260,9 +261,13 @@ export async function generateResumeImage(data: ResumeData): Promise<Blob> {
 
     const cardGap = 20;
     const cardW = (WIDTH - 120 - 2 * cardGap) / 3;
-    data.methodology.slice(0, 3).forEach((m, i) => {
-      const cx = 60 + i * (cardW + cardGap);
-      const cy = mY + 25;
+    // Uniform card height (max dims) so a second row lines up when there are
+    // more than three methodology assessments (e.g. after SJT).
+    const items = data.methodology.slice(0, 6);
+    const uniformH = 62 + Math.max(...items.map(m => m.dims.length), 0) * 30;
+    items.forEach((m, i) => {
+      const cx = 60 + (i % 3) * (cardW + cardGap);
+      const cy = mY + 25 + Math.floor(i / 3) * (uniformH + 16);
       const cardH = 62 + m.dims.length * 30;
 
       roundRect(cx, cy, cardW, cardH, 16);
@@ -305,8 +310,8 @@ export async function generateResumeImage(data: ResumeData): Promise<Blob> {
         }
       });
     });
-    const maxDims = Math.max(...data.methodology.slice(0, 3).map(m => m.dims.length), 0);
-    sectionBottom = mY + 25 + 62 + maxDims * 30 + 10;
+    const rows = Math.ceil(items.length / 3);
+    sectionBottom = mY + 25 + rows * (uniformH + 16) + 10;
   }
 
   // === COMPETENCY MATRIX SECTION ===
@@ -322,7 +327,7 @@ export async function generateResumeImage(data: ResumeData): Promise<Blob> {
     const cBarX = 380;
     const cBarW = 420;
 
-    data.competencies.slice(0, 6).forEach((c, idx) => {
+    data.competencies.slice(0, 8).forEach((c, idx) => {
       const y = rowStartY + idx * rowGap;
 
       // Title (RTL)

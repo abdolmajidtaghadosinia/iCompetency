@@ -5,7 +5,7 @@ import {
   ShieldCheck, Printer, Share2, Loader2,
   Layers, Calculator, Zap, Box, Compass, Eye, LayoutGrid,
   Target, Microscope, Sparkles, Hexagon, Briefcase, Brain, Search, Puzzle,
-  Award, AlertTriangle
+  Award, AlertTriangle, Users2
 } from 'lucide-react';
 
 // Methodology assessment display config (keys match the server payload subjects).
@@ -13,8 +13,9 @@ const METH_CONFIG: Record<string, { title: string; icon: any; color: string; bg:
   '5whys':   { title: 'ریشه‌یابی (۵ چرا)',            icon: Search, color: 'text-cyan-600 dark:text-cyan-400',       bg: 'bg-cyan-500',    hex: '#06b6d4' },
   'swot':    { title: 'تحلیل استراتژیک (SWOT)',        icon: Target, color: 'text-fuchsia-600 dark:text-fuchsia-400', bg: 'bg-fuchsia-500', hex: '#d946ef' },
   'cynefin': { title: 'تصمیم‌گیری زمینه‌مند (Cynefin)', icon: Brain,  color: 'text-violet-600 dark:text-violet-400',   bg: 'bg-violet-500',  hex: '#8b5cf6' },
+  'sjt':     { title: 'قضاوت موقعیتی بین‌فردی (SJT)',   icon: Users2, color: 'text-teal-600 dark:text-teal-400',       bg: 'bg-teal-500',    hex: '#14b8a6' },
 };
-const METH_ORDER = ['5whys', 'swot', 'cynefin'];
+const METH_ORDER = ['5whys', 'swot', 'cynefin', 'sjt'];
 
 // Evidence-layer display config for the competency matrix. The layer keys
 // match the server's calculate_competencies() output.
@@ -39,6 +40,7 @@ const DIM_LABELS: Record<string, string> = {
   classificationAccuracy: 'دقت طبقه‌بندی', internalExternalDiscrimination: 'تفکیک داخلی/خارجی',
   positiveNegativeDiscrimination: 'تفکیک مثبت/منفی', strategyAlignment: 'هم‌راستایی استراتژی',
   precision: 'دقت علّی', directness: 'مسیر مستقیم',
+  conflictManagement: 'مدیریت تعارض', teamCommunication: 'ارتباط تیمی', empathySupport: 'همدلی و حمایت',
 };
 import { toPersianNum } from '../utils';
 import { getCareerFit } from '../utils/scoring';
