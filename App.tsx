@@ -294,8 +294,11 @@ function App() {
       );
   };
 
-  const handleBigFiveComplete = async (scores: NonNullable<UserProfile['bigFive']>) => {
-      await runProfileMutation('در حال ثبت نتیجه آزمون شخصیت...', () => submitBigFive(scores));
+  const handleBigFiveComplete = async (
+      scores: NonNullable<UserProfile['bigFive']>,
+      validity?: import('./types').BigFiveValidityIndicators,
+  ) => {
+      await runProfileMutation('در حال ثبت نتیجه آزمون شخصیت...', () => submitBigFive(scores, validity));
   };
 
   if (loading || authState === 'checking') {

@@ -67,6 +67,12 @@ function competency_matrix():array{return[
  ['layer'=>'personality','key'=>'Neuroticism','label'=>'ثبات هیجانی','weight'=>.45],
  ['layer'=>'cognitive','keys'=>['A15'],'label'=>'مدیریت همزمان زیر فشار (A15)','weight'=>.30],
  ['layer'=>'cognitive','keys'=>['A14'],'label'=>'بازداری پاسخ (A14)','weight'=>.25]]]];}
+// Response-validity flag for the Big Five self-report. The client submits
+// raw indicators (attention-check result, consistency-pair diffs, per-item
+// response times); the thresholds and verdict live here so the client can't
+// grade its own honesty. Missing indicators (older client) => null (unknown).
+// One tripped indicator => 'caution', two or more => 'invalid'.
+function bigfive_validity_flag(?array $v):?string{if($v===null)return null;$flags=0;if((int)($v['attentionFailed']??0)>0)$flags++;if((int)($v['inconsistentPairs']??0)>0)$flags++;$ic=(int)($v['itemCount']??0);if($ic>0&&((int)($v['tooFastCount']??0))/$ic>0.2)$flags++;return $flags>=2?'invalid':($flags===1?'caution':'valid');}
 function get_competency_label(int $s):string{if($s>=75)return'قوی';if($s>=60)return'خوب';if($s>=40)return'متوسط';return'نیازمند توسعه';}
 function calculate_competencies(array $raw,?array $bigFive,array $methodology):array{
 $rawByNorm=['A9a'=>'A9a_Corsi','A9b'=>'A9b_Paired','A9c'=>'A9c_NBack','A10'=>'A10_Math','A10Plus'=>'A10Plus_Pattern','A11'=>'A11_Speed','A12'=>'A12_Visual','A13'=>'A13_Orient','A14'=>'A14_Stroop','A15'=>'A15_Multi','A18'=>'A18_Fact'];
@@ -80,7 +86,10 @@ foreach(competency_matrix() as $key=>$def){
    foreach($src['keys'] as $nk){$rv=(float)($raw[$rawByNorm[$nk]]??0);if($rv>0)$ts[]=to_t_score($rv,$nk);}
    if($ts){$avail=true;$score=(int)max(0,min(100,round(((array_sum($ts)/count($ts))-20)/0.6)));}
   }elseif($src['layer']==='personality'){
-   if($bigFive!==null&&isset($bigFive[$src['key']])){$avail=true;$score=(int)max(0,min(100,round((float)$bigFive[$src['key']])));}
+   // A Big Five run flagged invalid (failed attention check + inconsistent
+   // answers) is untrustworthy self-report: drop the whole personality layer
+   // and let coverage shrink honestly rather than blend in noise.
+   if($bigFive!==null&&(($bigFive['_validity']??null)!=='invalid')&&isset($bigFive[$src['key']])&&is_numeric($bigFive[$src['key']])){$avail=true;$score=(int)max(0,min(100,round((float)$bigFive[$src['key']])));}
   }else{
    if(isset($methodology[$src['key']]['score'])){$avail=true;$score=(int)max(0,min(100,round((float)$methodology[$src['key']]['score'])));}
   }

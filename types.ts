@@ -53,6 +53,9 @@ export interface UserProfile {
     Extraversion: number;
     Agreeableness: number;
     Neuroticism: number;
+    // Server-computed response-validity verdict (attention check, consistency
+    // pairs, response times). null/absent = unknown (recorded pre-upgrade).
+    _validity?: 'valid' | 'caution' | 'invalid' | null;
   };
   // Latest rubric result per methodology game (5whys/swot/cynefin), derived
   // server-side from the analytical payload stored in game_results.
@@ -65,6 +68,18 @@ export interface UserProfile {
   // org-facing competency blends cognitive T-scores, Big Five and methodology
   // rubrics. The frontend only renders this — it never computes it.
   competencies?: CompetencyResult[];
+}
+
+// Raw response-quality indicators collected by BigFiveGame. The server turns
+// these into the _validity verdict — the client never grades itself.
+export interface BigFiveValidityIndicators {
+  tooFastCount: number;
+  itemCount: number;
+  inconsistentPairs: number;
+  pairCount: number;
+  attentionFailed: number;
+  attentionCount: number;
+  medianItemMs: number;
 }
 
 export interface CompetencyEvidence {

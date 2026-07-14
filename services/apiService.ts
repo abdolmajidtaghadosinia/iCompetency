@@ -1,4 +1,4 @@
-import type { AppView, UserProfile } from '../types';
+import type { AppView, BigFiveValidityIndicators, UserProfile } from '../types';
 
 const API_BASE_URL = (((import.meta as any).env?.VITE_API_BASE_URL as string | undefined) || '/backend').replace(/\/+$/, '');
 const TOKEN_KEY = 'iCompetency_Token';
@@ -202,9 +202,12 @@ export const submitMemoryProgress = (
   body: JSON.stringify({ subType, score, ...(rawScore !== undefined ? { rawScore } : {}) }),
 });
 
-export const submitBigFive = (scores: NonNullable<UserProfile['bigFive']>) => apiRequest<GameMutationResponse>('/game/bigfive', {
+export const submitBigFive = (
+  scores: NonNullable<UserProfile['bigFive']>,
+  validity?: BigFiveValidityIndicators,
+) => apiRequest<GameMutationResponse>('/game/bigfive', {
   method: 'POST',
-  body: JSON.stringify({ scores }),
+  body: JSON.stringify({ scores, ...(validity ? { validity } : {}) }),
 });
 
 export const getLeaderboard = (limit = 20) => apiRequest<LeaderboardResponse>(`/leaderboard?limit=${limit}`);

@@ -23,6 +23,12 @@ const LAYER_CONFIG: Record<string, { label: string; dot: string; bar: string }> 
   personality: { label: 'شخصیتی',      dot: 'bg-violet-500',  bar: 'bg-violet-500' },
   methodology: { label: 'روش‌شناختی',  dot: 'bg-emerald-500', bar: 'bg-emerald-500' },
 };
+// Server-computed Big Five response-validity verdict -> display chip.
+const BF_VALIDITY_CHIP: Record<string, { label: string; cls: string; printLabel: string }> = {
+  valid:   { label: 'اعتبار پاسخ: تأیید شده',      cls: 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800', printLabel: 'اعتبار پاسخ: تأیید شده' },
+  caution: { label: 'اعتبار پاسخ: نیازمند احتیاط', cls: 'bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800',             printLabel: 'اعتبار پاسخ: نیازمند احتیاط' },
+  invalid: { label: 'اعتبار پاسخ: نامعتبر',        cls: 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800',                         printLabel: 'اعتبار پاسخ: نامعتبر — در شایستگی‌ها لحاظ نشده' },
+};
 const competencyScoreColor = (s: number) =>
   s >= 75 ? 'text-purple-600 bg-purple-100 dark:bg-purple-900/30 dark:text-purple-300'
   : s >= 60 ? 'text-emerald-600 bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-300'
@@ -302,7 +308,14 @@ const VerifiedResume: React.FC<Props> = ({ user, isDarkMode = false }) => {
             {/* Big Five */}
             {bigFiveData.length > 0 && (
                 <section className="mb-7">
-                    <h2 className="text-lg font-black text-slate-900 mb-3 border-b-2 border-slate-200 pb-1.5">پروفایل شخصیت (Big Five / OCEAN)</h2>
+                    <div className="flex items-center justify-between border-b-2 border-slate-200 pb-1.5 mb-3">
+                        <h2 className="text-lg font-black text-slate-900">پروفایل شخصیت (Big Five / OCEAN)</h2>
+                        {user.bigFive?._validity && BF_VALIDITY_CHIP[user.bigFive._validity] && (
+                            <span className="text-[10px] font-black text-slate-600 border border-slate-300 rounded-full px-2.5 py-0.5">
+                                {BF_VALIDITY_CHIP[user.bigFive._validity].printLabel}
+                            </span>
+                        )}
+                    </div>
                     <div className="grid grid-cols-5 gap-3">
                         {bigFiveData.map((t, i) => (
                             <div key={i} className="border border-slate-200 rounded-lg p-3 text-center">
@@ -625,14 +638,21 @@ const VerifiedResume: React.FC<Props> = ({ user, isDarkMode = false }) => {
       {user.bigFive && (
         <div className="col-span-12 mt-6">
             <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-md rounded-3xl p-8 shadow-soft dark:shadow-none border border-slate-100 dark:border-slate-700">
-                <div className="flex items-center gap-4 mb-8">
-                     <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-500 flex items-center justify-center shadow-lg">
-                        <Hexagon className="text-white" size={24} />
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+                     <div className="flex items-center gap-4">
+                         <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-500 flex items-center justify-center shadow-lg">
+                            <Hexagon className="text-white" size={24} />
+                         </div>
+                         <div>
+                            <h3 className="text-2xl font-black text-slate-900 dark:text-white">پروفایل شخصیت (Big Five)</h3>
+                            <p className="text-slate-400 dark:text-slate-500 font-bold text-sm">تحلیل ۵ عاملی شخصیت بر اساس مدل OCEAN</p>
+                         </div>
                      </div>
-                     <div>
-                        <h3 className="text-2xl font-black text-slate-900 dark:text-white">پروفایل شخصیت (Big Five)</h3>
-                        <p className="text-slate-400 dark:text-slate-500 font-bold text-sm">تحلیل ۵ عاملی شخصیت بر اساس مدل OCEAN</p>
-                     </div>
+                     {user.bigFive?._validity && BF_VALIDITY_CHIP[user.bigFive._validity] && (
+                        <span className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-bold border flex items-center gap-1.5 ${BF_VALIDITY_CHIP[user.bigFive._validity].cls}`}>
+                            <ShieldCheck size={14} /> {BF_VALIDITY_CHIP[user.bigFive._validity].label}
+                        </span>
+                     )}
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">

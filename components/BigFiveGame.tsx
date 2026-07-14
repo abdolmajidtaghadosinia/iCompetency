@@ -1,17 +1,19 @@
 
-import React, { useState, useMemo } from 'react';
-import { 
-  Rocket, ShieldAlert, Users, HeartHandshake, Eye, 
+import React, { useState, useMemo, useRef } from 'react';
+import {
+  Rocket, ShieldAlert, Users, HeartHandshake, Eye,
   Hexagon, X, Play, Database, HardHat,
-  TrendingUp, Award, Activity, Save, AlertTriangle, 
-  Zap, Scale, Mic, Briefcase, Globe
+  TrendingUp, Award, Activity, Save, AlertTriangle,
+  Zap, Scale, Mic, Briefcase, Globe, ShieldCheck
 } from 'lucide-react';
 import { toPersianNum } from '../utils';
+import { median } from '../utils/scoring';
 import { sfx } from '../services/audioService';
+import { BigFiveValidityIndicators } from '../types';
 
 interface Props {
   onExit: () => void;
-  onComplete: (score: any) => void;
+  onComplete: (score: any, validity?: BigFiveValidityIndicators) => void;
 }
 
 type TraitType = 'Openness' | 'Conscientiousness' | 'Extraversion' | 'Agreeableness' | 'Neuroticism';
@@ -20,6 +22,7 @@ interface Choice {
   text: string;
   score: number; // -2 to +2
   analysis: string;
+  control?: boolean; // marks the correct option of the attention-check item
 }
 
 interface Scenario {
@@ -30,6 +33,11 @@ interface Scenario {
   story: string;
   icon: any;
   choices: Choice[];
+  // Validity probes: 'attention' items instruct a specific pick and score
+  // nothing; 'repeat' items are reworded duplicates whose answer is compared
+  // with the original (repeatOf) for consistency. Neither feeds trait scores.
+  kind?: 'attention' | 'repeat';
+  repeatOf?: number;
 }
 
 // --- FULL PSYCHOMETRIC DATABASE (25 SCENARIOS) ---
@@ -395,6 +403,64 @@ const PSYCHOMETRIC_DATA: Scenario[] = [
   }
 ];
 
+// --- RESPONSE-VALIDITY PROBES (not scored into traits) ---
+// One instructed-response attention check + two reworded repeats of early
+// items. The raw indicators go to the server, which computes the final
+// _validity verdict (backend/logic/scoring.php bigfive_validity_flag).
+const ATTENTION_ITEM: Scenario = {
+  id: 26,
+  phase: 'Quality Check',
+  trait: 'Openness', // unused; probes never feed rawScores
+  facet: 'Attention',
+  icon: Eye,
+  kind: 'attention',
+  story: 'این یک مورد کنترل دقت است و پاسخ درست یا غلط شخصیتی ندارد. برای تأیید اینکه سناریوها را با دقت می‌خوانید، گزینه‌ای را انتخاب کنید که با عبارت «گزینه کنترل» شروع می‌شود.',
+  choices: [
+    { text: 'گزینه کنترل: این گزینه را انتخاب می‌کنم.', score: 0, analysis: 'دقت تأیید شد', control: true },
+    { text: 'با تیم مشورت می‌کنم و بعد تصمیم می‌گیرم.', score: 0, analysis: 'عدم توجه به دستور' },
+    { text: 'موضوع را به مدیر بالادستی ارجاع می‌دهم.', score: 0, analysis: 'عدم توجه به دستور' },
+    { text: 'فعلاً تصمیمی نمی‌گیرم تا اطلاعات بیشتری برسد.', score: 0, analysis: 'عدم توجه به دستور' },
+  ],
+};
+
+const REPEAT_ITEMS: Scenario[] = [
+  {
+    id: 27,
+    phase: 'Phase 1: Operations',
+    trait: 'Neuroticism',
+    facet: 'Volatility',
+    icon: ShieldAlert,
+    kind: 'repeat',
+    repeatOf: 3,
+    story: 'در بازدید شبانه، سنسور فشار مخزن اصلی هشدار می‌دهد. ممکن است خطای کالیبراسیون باشد یا نشانه یک نشتی خطرناک.',
+    choices: [
+      { text: 'آرامشم را حفظ می‌کنم و پروتکل بررسی فنی را قدم‌به‌قدم اجرا می‌کنم.', score: 2, analysis: 'ثبات هیجانی بالا' },
+      { text: 'تیم نگهداری را احضار می‌کنم و وضعیت آماده‌باش اعلام می‌کنم.', score: 1, analysis: 'هوشیاری محتاطانه' },
+      { text: 'بلافاصله دستور تخلیه کامل سایت را صادر می‌کنم؛ هیچ ریسکی نمی‌کنم!', score: -2, analysis: 'واکنش هیجانی شدید' },
+      { text: 'مضطرب می‌شوم و پشت‌سرهم از واحدهای مختلف گزارش می‌خواهم.', score: -1, analysis: 'نگرانی و انتقال استرس' },
+    ],
+  },
+  {
+    id: 28,
+    phase: 'Phase 2: Crisis',
+    trait: 'Conscientiousness',
+    facet: 'Dutifulness',
+    icon: ShieldAlert,
+    kind: 'repeat',
+    repeatOf: 7,
+    story: 'چند ساعت مانده به بارگیری یک سفارش مهم، واحد کنترل کیفیت یک ایراد جزئی در محصولات گزارش می‌کند.',
+    choices: [
+      { text: 'بارگیری را نگه می‌دارم تا همه اقلام بازبینی و اصلاح شوند، حتی به قیمت جریمه تأخیر.', score: 2, analysis: 'تعهد اخلاقی بالا' },
+      { text: 'موضوع را شفاف به مشتری اطلاع می‌دهم و با توافق او ارسال می‌کنم.', score: 1, analysis: 'شفافیت مسئولانه' },
+      { text: 'ارسال می‌کنم و تیم پشتیبانی را برای شکایت‌های احتمالی آماده نگه می‌دارم.', score: -1, analysis: 'مصلحت‌اندیشی' },
+      { text: 'ایراد جزئی است؛ کسی متوجه نمی‌شود. بفرستید.', score: -2, analysis: 'عدم مسئولیت‌پذیری' },
+    ],
+  },
+];
+
+// Answering faster than this can't include actually reading the scenario.
+const TOO_FAST_MS = 3000;
+
 // Helper Icon Component
 function HandshakeIcon(props: any) {
   return <HeartHandshake {...props} />
@@ -490,16 +556,46 @@ const BigFiveGame: React.FC<Props> = ({ onExit, onComplete }) => {
   const [gameState, setGameState] = useState<'intro' | 'playing' | 'results'>('intro');
   const [currentIndex, setCurrentIndex] = useState(0);
   const [rawScores, setRawScores] = useState<Record<string, number>>({
-    Openness: 0, Conscientiousness: 0, Extraversion: 0, Agreeableness: 0, Neuroticism: 0 
+    Openness: 0, Conscientiousness: 0, Extraversion: 0, Agreeableness: 0, Neuroticism: 0
   });
+  // Per-item response log for the validity indicators (times, probe results).
+  const responsesRef = useRef<{ id: number; kind?: string; repeatOf?: number; score: number; control: boolean; ms: number }[]>([]);
+  const itemStartRef = useRef<number>(Date.now());
 
-  // Randomize choices order once on mount using Fisher-Yates to prevent "pattern guessing"
+  // Randomize choices order once on mount using Fisher-Yates to prevent
+  // "pattern guessing", then weave in the validity probes: the attention
+  // check mid-test, the two consistency repeats at the end (far from their
+  // originals #3 and #7).
   const shuffledData = useMemo(() => {
-    return PSYCHOMETRIC_DATA.map(scenario => ({
+    const main = PSYCHOMETRIC_DATA.map(scenario => ({
       ...scenario,
       choices: shuffleArray(scenario.choices)
     }));
+    const probes = [ATTENTION_ITEM, ...REPEAT_ITEMS].map(p => ({ ...p, choices: shuffleArray(p.choices) }));
+    return [...main.slice(0, 10), probes[0], ...main.slice(10), probes[1], probes[2]];
   }, []);
+
+  const buildValidity = (): BigFiveValidityIndicators => {
+    const rs = responsesRef.current;
+    const byId = new Map(rs.map(r => [r.id, r]));
+    const repeats = rs.filter(r => r.kind === 'repeat' && r.repeatOf !== undefined);
+    // A pair is inconsistent when the same situation got answers 3+ points
+    // apart on the -2..+2 impact scale (e.g. +2 vs -1).
+    const inconsistentPairs = repeats.filter(r => {
+      const orig = byId.get(r.repeatOf as number);
+      return orig !== undefined && Math.abs(orig.score - r.score) >= 3;
+    }).length;
+    const attention = rs.filter(r => r.kind === 'attention');
+    return {
+      tooFastCount: rs.filter(r => r.ms < TOO_FAST_MS).length,
+      itemCount: rs.length,
+      inconsistentPairs,
+      pairCount: repeats.length,
+      attentionFailed: attention.filter(r => !r.control).length,
+      attentionCount: attention.length,
+      medianItemMs: Math.round(median(rs.map(r => r.ms))),
+    };
+  };
 
   const finalScores = useMemo<Record<string, number>>(() => {
     const calculated: Record<string, number> = {};
@@ -514,10 +610,24 @@ const BigFiveGame: React.FC<Props> = ({ onExit, onComplete }) => {
     return calculated;
   }, [rawScores]);
 
-  const handleChoice = (impact: number) => {
+  const handleChoice = (choice: Choice) => {
     sfx.playClick();
-    const trait = shuffledData[currentIndex].trait;
-    setRawScores(prev => ({ ...prev, [trait]: prev[trait] + impact }));
+    const item = shuffledData[currentIndex];
+    const now = Date.now();
+    responsesRef.current.push({
+      id: item.id,
+      kind: item.kind,
+      repeatOf: item.repeatOf,
+      score: choice.score,
+      control: choice.control === true,
+      ms: now - itemStartRef.current,
+    });
+    itemStartRef.current = now;
+
+    // Probes never feed the trait scores — they only measure response quality.
+    if (!item.kind) {
+      setRawScores(prev => ({ ...prev, [item.trait]: prev[item.trait] + choice.score }));
+    }
 
     if (currentIndex < shuffledData.length - 1) {
       setCurrentIndex(prev => prev + 1);
@@ -550,10 +660,10 @@ const BigFiveGame: React.FC<Props> = ({ onExit, onComplete }) => {
             <h2 className="text-lg font-bold text-slate-400 mb-8 leading-relaxed">
               شبیه‌سازی کامل مدیریت صنعتی در ۵ فاز عملیاتی، بحران، تیم، استراتژی و میراث.
               <br/>
-              <span className="text-xs mt-2 block opacity-70">شامل ۲۵ سناریوی تصمیم‌گیری کلیدی</span>
+              <span className="text-xs mt-2 block opacity-70">شامل ۲۵ سناریوی تصمیم‌گیری کلیدی + ۳ مورد کنترل کیفیت پاسخ</span>
             </h2>
-            <button 
-                onClick={() => { sfx.playClick(); setGameState('playing'); }}
+            <button
+                onClick={() => { sfx.playClick(); itemStartRef.current = Date.now(); setGameState('playing'); }}
                 className="group w-full py-4 bg-blue-600 text-white rounded-2xl font-black text-xl hover:bg-blue-500 transition-all shadow-lg active:scale-95"
             >
                 <span className="flex items-center justify-center gap-2">
@@ -566,6 +676,18 @@ const BigFiveGame: React.FC<Props> = ({ onExit, onComplete }) => {
   }
 
   if (gameState === 'results') {
+      // Display-only preview of the response-quality verdict; the stored flag
+      // is computed server-side from the same raw indicators.
+      const v = buildValidity();
+      const flags = (v.attentionFailed > 0 ? 1 : 0)
+        + (v.inconsistentPairs > 0 ? 1 : 0)
+        + (v.itemCount > 0 && v.tooFastCount / v.itemCount > 0.2 ? 1 : 0);
+      const validityChip = flags >= 2
+        ? { label: 'کیفیت پاسخ‌دهی: نامعتبر', cls: 'bg-rose-500/10 border-rose-500/40 text-rose-300' }
+        : flags === 1
+          ? { label: 'کیفیت پاسخ‌دهی: نیازمند احتیاط', cls: 'bg-amber-500/10 border-amber-500/40 text-amber-300' }
+          : { label: 'کیفیت پاسخ‌دهی: معتبر', cls: 'bg-emerald-500/10 border-emerald-500/40 text-emerald-300' };
+
       return (
         <div className="h-full bg-slate-950 text-white overflow-y-auto custom-scrollbar p-6 md:p-8 pb-24 md:pb-8 animate-fade-in-up">
             <div className="max-w-5xl mx-auto">
@@ -574,8 +696,13 @@ const BigFiveGame: React.FC<Props> = ({ onExit, onComplete }) => {
                         <h2 className="text-3xl font-black text-white mb-2 flex items-center gap-3"><Activity /> کارنامه صلاحیت آزمون شخصیت</h2>
                         <p className="text-slate-400 font-mono text-sm">OCEAN PROFILE GENERATED // 100%</p>
                     </div>
-                    <div className="bg-slate-900 px-4 py-2 rounded-xl border border-white/10 text-xs font-mono">
-                         ID: BF-{Date.now().toString().slice(-6)}
+                    <div className="flex flex-col items-end gap-2">
+                        <div className={`px-4 py-1.5 rounded-full border text-xs font-bold flex items-center gap-1.5 ${validityChip.cls}`}>
+                            <ShieldCheck size={14} /> {validityChip.label}
+                        </div>
+                        <div className="bg-slate-900 px-4 py-2 rounded-xl border border-white/10 text-xs font-mono">
+                             ID: BF-{Date.now().toString().slice(-6)}
+                        </div>
                     </div>
                 </div>
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 mb-12">
@@ -608,7 +735,7 @@ const BigFiveGame: React.FC<Props> = ({ onExit, onComplete }) => {
                     </div>
                 </div>
                 <div className="flex justify-center gap-4 pb-10">
-                    <button onClick={() => onComplete(finalScores)} className="px-12 py-4 rounded-2xl bg-gradient-to-r from-blue-600 to-emerald-600 text-white font-black hover:shadow-lg hover:shadow-emerald-900/50 transition-all flex items-center gap-2 text-lg active:scale-95">
+                    <button onClick={() => onComplete(finalScores, buildValidity())} className="px-12 py-4 rounded-2xl bg-gradient-to-r from-blue-600 to-emerald-600 text-white font-black hover:shadow-lg hover:shadow-emerald-900/50 transition-all flex items-center gap-2 text-lg active:scale-95">
                         <Save size={20} /> ثبت نتایج در پرونده
                     </button>
                 </div>
@@ -656,7 +783,7 @@ const BigFiveGame: React.FC<Props> = ({ onExit, onComplete }) => {
                 {currentScenario.choices.map((choice, idx) => (
                     <button
                         key={idx}
-                        onClick={() => handleChoice(choice.score)}
+                        onClick={() => handleChoice(choice)}
                         style={{ animationDelay: `${idx * 100}ms` }}
                         className="group relative w-full text-right p-6 rounded-2xl bg-slate-900 border border-slate-800 hover:border-blue-500/50 hover:bg-slate-800 hover:shadow-lg hover:shadow-blue-900/10 transition-all duration-200 active:scale-[0.98] animate-fade-in-up"
                     >

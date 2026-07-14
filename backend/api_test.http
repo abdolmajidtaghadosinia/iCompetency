@@ -181,6 +181,8 @@ Content-Type: application/json
 }
 
 ### Big Five
+# validity اختیاری است: شاخص‌های خام کیفیت پاسخ که سرور از آن‌ها پرچم
+# _validity (valid/caution/invalid) را کنار نمرات ذخیره می‌کند.
 POST {{baseUrl}}/game/bigfive
 Authorization: Bearer {{token}}
 Content-Type: application/json
@@ -192,6 +194,15 @@ Content-Type: application/json
     "Extraversion": 45,
     "Agreeableness": 60,
     "Neuroticism": 35
+  },
+  "validity": {
+    "tooFastCount": 1,
+    "itemCount": 28,
+    "inconsistentPairs": 0,
+    "pairCount": 2,
+    "attentionFailed": 0,
+    "attentionCount": 1,
+    "medianItemMs": 9500
   }
 }
 
