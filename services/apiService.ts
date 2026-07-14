@@ -168,6 +168,20 @@ export async function login(email: string, password: string): Promise<AuthPayloa
   return payload;
 }
 
+// Password recovery. The backend always answers with a neutral message (no
+// account enumeration); in debug installs it may also return debugResetToken.
+export const forgotPassword = (email: string) =>
+  apiRequest<{ message: string; debugResetToken?: string }>('/auth/forgot-password', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  }, false);
+
+export const resetPassword = (email: string, token: string, newPassword: string) =>
+  apiRequest<{ message: string }>('/auth/reset-password', {
+    method: 'POST',
+    body: JSON.stringify({ email, token, newPassword }),
+  }, false);
+
 export const logout = async () => {
   try {
     await apiRequest('/auth/logout', { method: 'POST' });

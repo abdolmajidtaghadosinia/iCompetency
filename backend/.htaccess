@@ -13,6 +13,10 @@ Options -Indexes
   Deny from all
 </FilesMatch>
 RewriteEngine On
+# cPanel/FastCGI setups strip the Authorization header before PHP sees it,
+# which silently logs every user out (Bearer tokens never arrive). Re-inject
+# it as an environment variable that core/auth.php already reads.
+RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
 RewriteRule ^(core|logic|routes)/ - [F,L]
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d

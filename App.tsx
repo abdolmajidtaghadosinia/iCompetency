@@ -35,6 +35,7 @@ import { Loader2 } from 'lucide-react';
 import {
   clearStoredToken,
   completeGame,
+  forgotPassword,
   getMe,
   getScoringNorms,
   getStoredToken,
@@ -45,6 +46,7 @@ import {
   profileFromAuthPayload,
   readLegacyProfile,
   register,
+  resetPassword,
   submitBigFive,
   submitMemoryProgress,
   syncProfile,
@@ -316,7 +318,14 @@ function App() {
   }
 
   if (authState === 'anonymous') {
-    return <AuthScreen onLogin={handleLogin} onRegister={handleRegister} />;
+    return (
+      <AuthScreen
+        onLogin={handleLogin}
+        onRegister={handleRegister}
+        onForgotPassword={forgotPassword}
+        onResetPassword={resetPassword}
+      />
+    );
   }
 
   return (

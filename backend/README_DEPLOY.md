@@ -71,6 +71,8 @@ Authorization: Bearer <token>
 - `POST /auth/forgot-password`
 - `POST /auth/reset-password`
 
+برای فعال شدن ایمیل بازیابی رمز، در `config.php` مقدار `app.password_reset_url` را به آدرس فرانت‌اند (مثلاً `https://app.example.com/`) و `app.mail_from` را به یک فرستنده معتبر تنظیم کنید. لینک ایمیل به شکل `?email=…&token=…` باز می‌شود و صفحه ورود به‌طور خودکار فرم «تعیین رمز جدید» را با همان مقادیر نشان می‌دهد. در محیط تست می‌توانید `debug_return_reset_token` را `true` کنید تا کد بازیابی در پاسخ API هم برگردد (در production حتماً خاموش باشد).
+
 `register/login/me` پروفایل را با شکل سازگار با `UserProfile` فرانت‌اند برمی‌گردانند.
 
 ### Profile
