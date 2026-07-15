@@ -188,7 +188,41 @@ foreach ($onlyPersonality as $c) ok("{$c['key']} drops invalid personality evide
 $partial = calculate_competencies([], ['Openness'=>80] + $bf, []);
 foreach ($partial as $c) if ($c['key'] === 'problemSolving') ok('renormalization: Openness-only -> score 80, coverage .20', $c['score'] === 80 && abs($c['coverage'] - .20) < 1e-9 && $c['insufficient']);
 
-// 10. Labels -------------------------------------------------------------------------
+// 10. Career fit ---------------------------------------------------------------------
+section('Career fit (O*NET-anchored profile matching)');
+$families = career_families();
+$featLabels = career_feature_labels();
+ok('8 job families defined', count($families) === 8, implode(',', array_keys($families)));
+foreach ($families as $fk => $fam) {
+    $w = array_sum(array_column($fam['requirements'], 'w'));
+    $featsOk = true; $modesOk = true; $targetsOk = true;
+    foreach ($fam['requirements'] as $r) {
+        if (!isset($featLabels[$r['f']])) $featsOk = false;
+        if (!in_array($r['m'], ['atLeast', 'match'], true)) $modesOk = false;
+        if ($r['t'] < 0 || $r['t'] > 100) $targetsOk = false;
+    }
+    ok("$fk: weights=1, features known, modes/targets valid", abs($w - 1.0) < 1e-9 && $featsOk && $modesOk && $targetsOk, "w=$w");
+    ok("$fk has O*NET + RIASEC anchors", !empty($fam['onet']) && !empty($fam['riasec']));
+}
+foreach (calculate_career_fit([], null, []) as $c)
+    ok("{$c['key']} null fit without any evidence", $c['fitScore'] === null && $c['insufficient'] === true);
+$rawStrongFit = ['A10_Math'=>95,'A10Plus_Pattern'=>95,'A18_Fact'=>100,'A9a_Corsi'=>9,'A9b_Paired'=>95,'A9c_NBack'=>4.2,'A11_Speed'=>85,'A14_Stroop'=>80,'A15_Multi'=>80,'A12_Visual'=>80,'A13_Orient'=>85];
+$bfAnalystFit = ['Openness'=>70,'Conscientiousness'=>65,'Extraversion'=>30,'Agreeableness'=>50,'Neuroticism'=>60];
+$methFullFit = ['5whys'=>['score'=>80],'swot'=>['score'=>70],'cynefin'=>['score'=>70],'sjt'=>['score'=>45]];
+$fitA = calculate_career_fit($rawStrongFit, $bfAnalystFit, $methFullFit);
+$byFit = []; foreach ($fitA as $c) $byFit[$c['key']] = $c;
+ok('analytical profile tops an analytical family', in_array($fitA[0]['key'], ['dataAnalysis','softwareEngineering'], true), $fitA[0]['key']);
+ok('discrimination: analysis beats sales by 10+ points', ($byFit['dataAnalysis']['fitScore'] - $byFit['salesBusinessDev']['fitScore']) >= 10);
+$prev = PHP_INT_MAX;
+$sorted = true; foreach ($fitA as $c) { if (($c['fitScore'] ?? -1) > $prev) $sorted = false; $prev = $c['fitScore'] ?? -1; }
+ok('families sorted by fit descending', $sorted);
+$bfSocialFit = ['Openness'=>55,'Conscientiousness'=>55,'Extraversion'=>80,'Agreeableness'=>70,'Neuroticism'=>65];
+$fitB = calculate_career_fit([], $bfSocialFit, ['sjt'=>['score'=>80],'cynefin'=>['score'=>60],'5whys'=>['score'=>50],'swot'=>['score'=>50]]);
+ok('social profile tops a people-facing family', in_array($fitB[0]['key'], ['salesBusinessDev','hrPeople','customerSuccess'], true), $fitB[0]['key']);
+foreach (calculate_career_fit([], $bfSocialFit, []) as $c)
+    if ($c['key'] === 'dataAnalysis') ok('cognitive-heavy family flagged insufficient without cognitive data', $c['insufficient'] === true);
+
+// 11. Labels -------------------------------------------------------------------------
 section('Labels');
 foreach ([[70,'بسیار بالا'],[60,'بالاتر از میانگین'],[50,'متوسط'],[35,'پایین‌تر از میانگین'],[25,'نیازمند توجه']] as [$t,$l])
     ok("performance label T=$t", get_performance_label($t) === $l);

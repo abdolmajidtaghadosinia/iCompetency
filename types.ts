@@ -68,6 +68,22 @@ export interface UserProfile {
   // org-facing competency blends cognitive T-scores, Big Five and methodology
   // rubrics. The frontend only renders this — it never computes it.
   competencies?: CompetencyResult[];
+  // Server-computed O*NET-anchored person-environment career fit
+  // (docs/career-fit.md). Advisory/exploratory — never a hiring verdict.
+  careerFit?: CareerFitResult[];
+}
+
+export interface CareerFitResult {
+  key: string;
+  title: string;
+  description: string;
+  onet: string;    // anchoring O*NET occupation code
+  riasec: string;  // Holland letters of the anchored occupation
+  fitScore: number | null; // 0-100, null when nothing is measured yet
+  coverage: number;        // share of requirement weight actually measured
+  insufficient: boolean;   // coverage < 0.5 — tentative, not a verdict
+  strengths: string[];     // best-satisfied requirement labels (Persian)
+  gaps: string[];          // weakest requirement labels (Persian)
 }
 
 // Raw response-quality indicators collected by BigFiveGame. The server turns

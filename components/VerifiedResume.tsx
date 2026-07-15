@@ -43,7 +43,7 @@ const DIM_LABELS: Record<string, string> = {
   conflictManagement: 'مدیریت تعارض', teamCommunication: 'ارتباط تیمی', empathySupport: 'همدلی و حمایت',
 };
 import { toPersianNum } from '../utils';
-import { getCareerFit } from '../utils/scoring';
+import { getCareerFit, CareerProfile } from '../utils/scoring';
 import { shareResume } from '../utils/pdfGenerator';
 
 interface Props {
@@ -186,9 +186,27 @@ const VerifiedResume: React.FC<Props> = ({ user, isDarkMode = false }) => {
     }
   };
 
-  // Calculate Career Fit
-  const careerProfiles = useMemo(() => getCareerFit(user), [user]);
+  // Career fit: the server-computed O*NET-anchored profile match is the real
+  // signal (docs/career-fit.md); the legacy client formula stays only as an
+  // offline fallback for older backends.
+  const careerProfiles = useMemo<CareerProfile[]>(() => {
+    const server = (user.careerFit ?? []).filter(c => c.fitScore !== null);
+    if (server.length > 0) {
+      return server.map(c => ({
+        title: c.title,
+        description: c.description,
+        fitScore: c.fitScore as number,
+        keyTraits: c.strengths,
+      }));
+    }
+    return getCareerFit(user);
+  }, [user]);
   const bestFit = careerProfiles[0];
+  // Honesty metadata for the top suggestion (server path only).
+  const bestFitMeta = useMemo(
+    () => (user.careerFit ?? []).find(c => c.title === bestFit?.title),
+    [user.careerFit, bestFit]
+  );
 
   const methResults = user.methodologyResults ?? {};
   const methItems = METH_ORDER.filter(k => methResults[k]).map(k => ({ key: k, ...methResults[k], cfg: METH_CONFIG[k] }));
@@ -349,6 +367,9 @@ const VerifiedResume: React.FC<Props> = ({ user, isDarkMode = false }) => {
                         </div>
                     ))}
                 </div>
+                <p className="text-[9px] text-slate-400 font-bold mt-2">
+                    تناسب از تطبیق پروفایل فرد با پروفایل الزامات هر گروه شغلی (مرجع نقش‌ها: O*NET{bestFitMeta ? `؛ پیشنهاد برتر: ${bestFitMeta.onet} / ${bestFitMeta.riasec}` : ''}) محاسبه شده و پیشنهادی اکتشافی است، نه حکم استخدامی.
+                </p>
             </section>
 
             {/* Footer */}
@@ -477,20 +498,40 @@ const VerifiedResume: React.FC<Props> = ({ user, isDarkMode = false }) => {
                               <h3 className="text-2xl font-black">تحلیل تناسب شغلی (AI Profiling)</h3>
                           </div>
                           <p className="text-slate-300 mb-6 leading-relaxed max-w-xl">
-                              بر اساس ترکیب شاخص‌های شناختی و مدل شخصیتی OCEAN، الگوریتم پیشنهاد می‌دهد که پروفایل شما بیشترین تطابق را با نقش زیر دارد:
+                              بر اساس تطبیق پروفایل سنجیده‌شده شما (شاخص‌های شناختی، شایستگی‌ها و مدل شخصیتی OCEAN) با پروفایل الزامات گروه‌های شغلی، بیشترین تناسب با نقش زیر است:
                           </p>
-                          
+
                           <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/10 inline-block w-full max-w-md">
-                              <div className="text-xs font-bold text-indigo-300 uppercase tracking-wider mb-2">پیشنهاد برتر</div>
+                              <div className="flex items-center justify-between mb-2">
+                                  <div className="text-xs font-bold text-indigo-300 uppercase tracking-wider">پیشنهاد برتر</div>
+                                  {bestFitMeta && (
+                                      <span className="text-[9px] font-bold text-slate-300 bg-white/10 border border-white/10 rounded-full px-2 py-0.5" dir="ltr">
+                                          O*NET {bestFitMeta.onet} · {bestFitMeta.riasec}
+                                      </span>
+                                  )}
+                              </div>
                               <h2 className="text-3xl font-black mb-2">{bestFit.title}</h2>
                               <p className="text-slate-300 text-sm">{bestFit.description}</p>
-                              
+
                               <div className="mt-4 flex flex-wrap gap-2">
                                   {bestFit.keyTraits.map((t, i) => (
                                       <span key={i} className="text-[10px] bg-indigo-500/30 px-2 py-1 rounded text-indigo-200 border border-indigo-500/30">{t}</span>
                                   ))}
+                                  {bestFitMeta?.insufficient && (
+                                      <span className="text-[10px] bg-amber-500/20 px-2 py-1 rounded text-amber-200 border border-amber-500/40 flex items-center gap-1">
+                                          <AlertTriangle size={10} /> شواهد ناکافی
+                                      </span>
+                                  )}
                               </div>
+                              {bestFitMeta && (
+                                  <div className="mt-3 text-[10px] font-bold text-slate-400">
+                                      پوشش شواهد: {toPersianNum(Math.round(bestFitMeta.coverage * 100))}٪ از مدل الزامات
+                                  </div>
+                              )}
                           </div>
+                          <p className="mt-4 text-[10px] text-slate-400 leading-relaxed max-w-md">
+                              پیشنهاد اکتشافی بر پایه تطبیق پروفایل (مرجع نقش‌ها: O*NET) — جایگزین آزمون رغبت شغلی یا مصاحبه نیست.
+                          </p>
                       </div>
 
                       <div className="w-full md:w-1/3 flex flex-col justify-center gap-3">

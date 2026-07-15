@@ -71,6 +71,96 @@ function competency_matrix():array{return[
  ['layer'=>'methodology','key'=>'sjt','label'=>'قضاوت موقعیتی بین‌فردی (SJT)','weight'=>.50],
  ['layer'=>'personality','key'=>'Agreeableness','label'=>'توافق‌پذیری','weight'=>.30],
  ['layer'=>'personality','key'=>'Extraversion','label'=>'برون‌گرایی','weight'=>.20]]]];}
+// --- Career fit (person-environment profile matching) -------------------------
+// Eight knowledge-work job families, each anchored to an O*NET occupation code
+// and its Holland (RIASEC) letters, with a requirement profile over constructs
+// this product actually measures: cognitive indices (T rescaled to 0-100),
+// competencies, and Big Five traits. Requirement levels follow O*NET
+// abilities/work-styles importance ratings and the Big Five–performance
+// meta-analytic literature (see docs/career-fit.md — change them there and
+// here together).
+// Fit is NOT a weighted average of trait levels (that clusters everyone near
+// 50): each requirement is satisfied on its own terms —
+//   mode 'atLeast': ability floors; exceeding the target never hurts.
+//   mode 'match'  : style/personality targets; distance in either direction
+//                   reduces satisfaction (an extreme misfit is a misfit).
+// Weights renormalize over the evidence actually present; `coverage` and the
+// insufficient flag work exactly like the competency matrix. This is an
+// advisory, exploratory signal — not an interest inventory and not a verdict.
+function career_feature_labels():array{return['MI'=>'حافظه','AI'=>'توجه و تمرکز','RI'=>'استدلال','SI'=>'درک فضایی','EI'=>'کنترل اجرایی','problemSolving'=>'حل مسئله','decisionMaking'=>'تصمیم‌گیری','strategicThinking'=>'تفکر استراتژیک','learningAgility'=>'یادگیری‌پذیری','attentionControl'=>'تمرکز و مدیریت توجه','stressResilience'=>'عملکرد زیر فشار','collaboration'=>'همکاری و تعامل','Openness'=>'گشودگی به تجربه','Conscientiousness'=>'وظیفه‌شناسی','Extraversion'=>'برون‌گرایی','Agreeableness'=>'توافق‌پذیری','Stability'=>'ثبات هیجانی'];}
+function career_families():array{return[
+'dataAnalysis'=>['title'=>'تحلیل داده و پژوهش','description'=>'تحلیل کمی، پژوهش و استخراج بینش از داده','onet'=>'15-2051','riasec'=>'IC','requirements'=>[
+ ['f'=>'RI','t'=>65,'w'=>.30,'m'=>'atLeast'],['f'=>'problemSolving','t'=>60,'w'=>.20,'m'=>'atLeast'],['f'=>'attentionControl','t'=>55,'w'=>.15,'m'=>'atLeast'],
+ ['f'=>'Openness','t'=>65,'w'=>.15,'m'=>'match'],['f'=>'Conscientiousness','t'=>60,'w'=>.10,'m'=>'match'],['f'=>'MI','t'=>55,'w'=>.10,'m'=>'atLeast']]],
+'softwareEngineering'=>['title'=>'مهندسی نرم‌افزار و فنی','description'=>'طراحی و ساخت سیستم‌های فنی و حل مسائل مهندسی','onet'=>'15-1252','riasec'=>'IR','requirements'=>[
+ ['f'=>'RI','t'=>65,'w'=>.25,'m'=>'atLeast'],['f'=>'problemSolving','t'=>60,'w'=>.20,'m'=>'atLeast'],['f'=>'SI','t'=>55,'w'=>.15,'m'=>'atLeast'],
+ ['f'=>'attentionControl','t'=>55,'w'=>.15,'m'=>'atLeast'],['f'=>'Conscientiousness','t'=>60,'w'=>.15,'m'=>'match'],['f'=>'Openness','t'=>60,'w'=>.10,'m'=>'match']]],
+'productManagement'=>['title'=>'مدیریت محصول','description'=>'تعادل نیاز کاربر، فنی و کسب‌وکار و اولویت‌بندی مسیر محصول','onet'=>'11-2021','riasec'=>'EI','requirements'=>[
+ ['f'=>'strategicThinking','t'=>60,'w'=>.20,'m'=>'atLeast'],['f'=>'decisionMaking','t'=>60,'w'=>.20,'m'=>'atLeast'],['f'=>'collaboration','t'=>55,'w'=>.15,'m'=>'atLeast'],
+ ['f'=>'RI','t'=>55,'w'=>.15,'m'=>'atLeast'],['f'=>'Extraversion','t'=>60,'w'=>.15,'m'=>'match'],['f'=>'Openness','t'=>60,'w'=>.15,'m'=>'match']]],
+'operationsManagement'=>['title'=>'مدیریت عملیات و پروژه','description'=>'نظم‌دهی فرایندها، مدیریت منابع و تحویل به‌موقع','onet'=>'11-3051','riasec'=>'EC','requirements'=>[
+ ['f'=>'Conscientiousness','t'=>70,'w'=>.25,'m'=>'match'],['f'=>'attentionControl','t'=>60,'w'=>.20,'m'=>'atLeast'],['f'=>'stressResilience','t'=>60,'w'=>.20,'m'=>'atLeast'],
+ ['f'=>'decisionMaking','t'=>55,'w'=>.15,'m'=>'atLeast'],['f'=>'collaboration','t'=>50,'w'=>.10,'m'=>'atLeast'],['f'=>'EI','t'=>55,'w'=>.10,'m'=>'atLeast']]],
+'salesBusinessDev'=>['title'=>'فروش و توسعه کسب‌وکار','description'=>'اقناع، مذاکره و ساخت رابطه با مشتری','onet'=>'41-3091','riasec'=>'ES','requirements'=>[
+ ['f'=>'Extraversion','t'=>70,'w'=>.30,'m'=>'match'],['f'=>'collaboration','t'=>55,'w'=>.20,'m'=>'atLeast'],['f'=>'stressResilience','t'=>55,'w'=>.15,'m'=>'atLeast'],
+ ['f'=>'decisionMaking','t'=>50,'w'=>.15,'m'=>'atLeast'],['f'=>'Agreeableness','t'=>55,'w'=>.10,'m'=>'match'],['f'=>'AI','t'=>50,'w'=>.10,'m'=>'atLeast']]],
+'hrPeople'=>['title'=>'منابع انسانی و توسعه استعداد','description'=>'جذب، توسعه و نگهداشت افراد و بهبود تجربه کارکنان','onet'=>'13-1071','riasec'=>'SE','requirements'=>[
+ ['f'=>'collaboration','t'=>60,'w'=>.30,'m'=>'atLeast'],['f'=>'Agreeableness','t'=>65,'w'=>.20,'m'=>'match'],['f'=>'Extraversion','t'=>55,'w'=>.15,'m'=>'match'],
+ ['f'=>'Conscientiousness','t'=>60,'w'=>.15,'m'=>'match'],['f'=>'decisionMaking','t'=>50,'w'=>.10,'m'=>'atLeast'],['f'=>'Stability','t'=>60,'w'=>.10,'m'=>'match']]],
+'customerSuccess'=>['title'=>'پشتیبانی و موفقیت مشتری','description'=>'حل مسئله مشتری، حفظ آرامش در تعامل و پیگیری منظم','onet'=>'13-1151','riasec'=>'SC','requirements'=>[
+ ['f'=>'collaboration','t'=>55,'w'=>.25,'m'=>'atLeast'],['f'=>'Stability','t'=>65,'w'=>.20,'m'=>'match'],['f'=>'stressResilience','t'=>55,'w'=>.15,'m'=>'atLeast'],
+ ['f'=>'attentionControl','t'=>50,'w'=>.15,'m'=>'atLeast'],['f'=>'Agreeableness','t'=>60,'w'=>.15,'m'=>'match'],['f'=>'Extraversion','t'=>55,'w'=>.10,'m'=>'match']]],
+'financeAudit'=>['title'=>'مالی، حسابرسی و کنترل','description'=>'دقت در اعداد، کنترل ریسک و انطباق با استانداردها','onet'=>'13-2011','riasec'=>'CE','requirements'=>[
+ ['f'=>'attentionControl','t'=>65,'w'=>.25,'m'=>'atLeast'],['f'=>'Conscientiousness','t'=>70,'w'=>.25,'m'=>'match'],['f'=>'RI','t'=>60,'w'=>.20,'m'=>'atLeast'],
+ ['f'=>'MI','t'=>50,'w'=>.10,'m'=>'atLeast'],['f'=>'Stability','t'=>55,'w'=>.10,'m'=>'match'],['f'=>'strategicThinking','t'=>50,'w'=>.10,'m'=>'atLeast']]]];}
+// Person feature vector on a common 0-100 scale. Cognitive indices average
+// only the tests actually taken (raw > 0) so an untaken test never injects a
+// fake floor; Big Five is dropped entirely when its validity flag is invalid.
+function career_person_features(array $raw,?array $bigFive,array $methodology):array{
+$rawByNorm=['A9a'=>'A9a_Corsi','A9b'=>'A9b_Paired','A9c'=>'A9c_NBack','A10'=>'A10_Math','A10Plus'=>'A10Plus_Pattern','A11'=>'A11_Speed','A12'=>'A12_Visual','A13'=>'A13_Orient','A14'=>'A14_Stroop','A15'=>'A15_Multi','A18'=>'A18_Fact'];
+$idxDefs=['MI'=>['A9a','A9b','A9c'],'AI'=>['A11','A14','A15'],'RI'=>['A10','A10Plus','A18'],'SI'=>['A12','A13'],'EI'=>['A14','A15','A10Plus']];
+$out=[];
+foreach($idxDefs as $ik=>$keys){$ts=[];foreach($keys as$nk){$rv=(float)($raw[$rawByNorm[$nk]]??0);if($rv>0)$ts[]=to_t_score($rv,$nk);}
+ $out[$ik]=$ts?['score'=>(int)max(0,min(100,round(((array_sum($ts)/count($ts))-20)/0.6))),'available'=>true]:['score'=>null,'available'=>false];}
+// A competency that is itself evidence-starved (its own coverage < .5) must
+// not masquerade as solid career evidence — honesty propagates down the chain.
+foreach(calculate_competencies($raw,$bigFive,$methodology) as $c)$out[$c['key']]=['score'=>$c['score'],'available'=>$c['score']!==null&&!$c['insufficient']];
+$bfOk=$bigFive!==null&&(($bigFive['_validity']??null)!=='invalid');
+foreach(['Openness','Conscientiousness','Extraversion','Agreeableness'] as $bk)
+ $out[$bk]=$bfOk&&isset($bigFive[$bk])&&is_numeric($bigFive[$bk])?['score'=>(int)max(0,min(100,round((float)$bigFive[$bk]))),'available'=>true]:['score'=>null,'available'=>false];
+$out['Stability']=$bfOk&&isset($bigFive['Neuroticism'])&&is_numeric($bigFive['Neuroticism'])?['score'=>(int)max(0,min(100,round((float)$bigFive['Neuroticism']))),'available'=>true]:['score'=>null,'available'=>false];
+return$out;}
+function calculate_career_fit(array $raw,?array $bigFive,array $methodology):array{
+$features=career_person_features($raw,$bigFive,$methodology);$labels=career_feature_labels();$out=[];
+foreach(career_families() as $key=>$fam){
+ $availW=0.0;$weighted=0.0;$totalW=0.0;$sats=[];
+ foreach($fam['requirements'] as $req){
+  $feat=$features[$req['f']]??null;$w=(float)$req['w'];$totalW+=$w;
+  if($feat===null||!$feat['available']){
+   // Unknown is neither satisfied nor failed: count it at the population-mean
+   // prior (0.5) instead of dropping it, so a family whose DEFINING abilities
+   // are unmeasured can't ride its generic requirements to an inflated fit.
+   $weighted+=$w*0.5;continue;
+  }
+  $v=(float)$feat['score'];$t=(float)$req['t'];
+  // atLeast: credit up to the floor with a mild power curve (^1.5) so a real
+  // shortfall costs more than linear; full credit beyond the floor.
+  // match: full at the target, fading to zero at 30 points of distance.
+  $sat=$req['m']==='atLeast'?pow(min(1.0,$t>0?$v/$t:1.0),1.5):max(0.0,1.0-abs($v-$t)/30.0);
+  $availW+=$w;$weighted+=$w*$sat;
+  $sats[]=['f'=>$req['f'],'label'=>$labels[$req['f']]??$req['f'],'sat'=>$sat,'w'=>$w];
+ }
+ $fit=$availW>0?(int)round(100.0*$weighted/max(1e-9,$totalW)):null;
+ usort($sats,static fn($a,$b)=>$b['sat']<=>$a['sat']);
+ $strengths=array_values(array_map(static fn($s)=>$s['label'],array_slice(array_filter($sats,static fn($s)=>$s['sat']>=0.85),0,3)));
+ $tail=array_reverse($sats);
+ $gaps=array_values(array_map(static fn($s)=>$s['label'],array_slice(array_filter($tail,static fn($s)=>$s['sat']<0.7),0,2)));
+ $out[]=['key'=>$key,'title'=>$fam['title'],'description'=>$fam['description'],'onet'=>$fam['onet'],'riasec'=>$fam['riasec'],
+  'fitScore'=>$fit,'coverage'=>round($availW,2),'insufficient'=>$availW<0.5,'strengths'=>$strengths,'gaps'=>$gaps];
+}
+usort($out,static fn($a,$b)=>(($b['fitScore']??-1)<=>($a['fitScore']??-1)));
+return$out;}
+
 // Response-validity flag for the Big Five self-report. The client submits
 // raw indicators (attention-check result, consistency-pair diffs, per-item
 // response times); the thresholds and verdict live here so the client can't

@@ -13,7 +13,9 @@ function save_profile_state(PDO $pdo,int $uid,array $s):void{$s['level_title']=g
 function build_user_profile(array $u,array $s,?PDO $pdo=null):array{$p=['name'=>(string)$u['name'],'role'=>(string)$u['role'],'level'=>get_tier_title((int)$s['level_number']),'levelNumber'=>(int)$s['level_number'],'currentXp'=>(int)$s['current_xp'],'requiredXp'=>(int)$s['required_xp'],'totalScenarios'=>(int)$s['total_scenarios'],'badges'=>$s['badges'],'skills'=>$s['skills'],'cognitiveProfile'=>['rawScores'=>$s['cognitive_raw'],'tScores'=>$s['cognitive_t']],'coins'=>(int)$s['coins'],'streak'=>(int)$s['streak'],'unlockedNodes'=>$s['unlocked_nodes'],'completedNodes'=>$s['completed_nodes'],'memorySubScores'=>$s['memory_sub_scores']];if($s['big_five']!==null)$p['bigFive']=$s['big_five'];$meth=[];if($pdo!==null){$meth=load_methodology_results($pdo,(int)$u['id']);$p['methodologyResults']=$meth;}
 // Server-computed competency matrix (docs/competency-matrix.md): weighted blend
 // of cognitive T-scores, Big Five and methodology rubrics with honest coverage.
-$p['competencies']=calculate_competencies($s['cognitive_raw'],$s['big_five'],$meth);return$p;}
+$p['competencies']=calculate_competencies($s['cognitive_raw'],$s['big_five'],$meth);
+// O*NET-anchored person-environment career fit (docs/career-fit.md).
+$p['careerFit']=calculate_career_fit($s['cognitive_raw'],$s['big_five'],$meth);return$p;}
 // Latest rubric result per methodology game, pulled from the analytical payload
 // stored in game_results. Rows predating the rubric upgrade (no dimensions) are
 // skipped, and fallback runs were never recorded, so only real results appear.
