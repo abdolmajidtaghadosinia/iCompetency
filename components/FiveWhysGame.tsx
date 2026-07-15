@@ -1,8 +1,8 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { FiveWhysData } from '../types';
-import { generateFiveWhysData, validateTextAnswer } from '../services/geminiService';
-import { Loader2, AlertTriangle, XCircle, Search, Send, HelpCircle, ArrowDown } from 'lucide-react';
+import { generateFiveWhysData } from '../services/geminiService';
+import { Loader2, AlertTriangle, XCircle, CheckCircle2, Search, HelpCircle, ArrowDown } from 'lucide-react';
 import GameShell from './GameShell';
 import MethodologyResult, { RubricDimension } from './MethodologyResult';
 import { toPersianNum } from '../utils';
@@ -13,160 +13,133 @@ interface Props {
   onComplete: (score: number, payload?: Record<string, unknown>) => void;
 }
 
-// Reject malformed AI data so a bad generation never becomes an unfair score.
-const isValidFiveWhys = (d: FiveWhysData | null): boolean =>
-  !!d && typeof d.problemStatement === 'string' && d.problemStatement.trim().length > 0 &&
-  Array.isArray(d.levels) && d.levels.length >= 1 &&
-  d.levels.every(l => !!l && typeof l.question === 'string' && l.question.trim().length > 0 &&
-    typeof l.idealAnswer === 'string' && l.idealAnswer.trim().length > 0);
+// The UI is Persian-only; reject non-Persian output so a weak generation falls
+// to the Persian fallback instead of being scored.
+const hasPersian = (s: string) => /[؀-ۿ]/.test(s || '');
 
-interface LevelLog { level: number; similarity: number; wrongCount: number; timeMs: number; }
+// Reject malformed AI data so a bad generation never becomes an unfair score:
+// every level needs 3+ Persian options with exactly one root-cause path.
+const isValidFiveWhys = (d: FiveWhysData | null): boolean =>
+  !!d && typeof d.problemStatement === 'string' && hasPersian(d.problemStatement) &&
+  Array.isArray(d.levels) && d.levels.length >= 1 &&
+  d.levels.every(l =>
+    !!l && typeof l.question === 'string' && hasPersian(l.question) &&
+    Array.isArray(l.options) && l.options.length >= 3 &&
+    l.options.every(o => !!o && typeof o.text === 'string' && hasPersian(o.text)) &&
+    l.options.filter(o => o.isRootCausePath === true).length === 1);
+
+const shuffle = <T,>(arr: T[]): T[] => {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+};
+
+interface LevelLog { level: number; wrongCount: number; timeMs: number; }
 
 const FiveWhysGame: React.FC<Props> = ({ onExit, onComplete }) => {
   const [gameState, setGameState] = useState<'intro' | 'playing' | 'paused' | 'finished'>('intro');
   const [data, setData] = useState<FiveWhysData | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [currentLevel, setCurrentLevel] = useState(0);
-  const [validating, setValidating] = useState(false);
-  const [userAnswer, setUserAnswer] = useState('');
-
-  const [feedback, setFeedback] = useState<string>('');
-  const [serviceNotice, setServiceNotice] = useState<string>('');
+  // The chosen root-cause-path option text per solved level, shown as the chain.
+  const [chain, setChain] = useState<string[]>([]);
+  const [picked, setPicked] = useState<number | null>(null);
   const [score, setScore] = useState(0);
-  // rabbitHoleTime > 0 means the player took a wrong branch and is waiting
-  // out the time penalty.
-  const [rabbitHoleTime, setRabbitHoleTime] = useState(0);
 
-  // Rubric signals: per-level solve quality (grader similarity), how many wrong
-  // branches before solving, and time spent — captured for subscores + payload.
+  // Rubric signals: wrong picks before solving each level, and time spent.
   const levelLogs = useRef<LevelLog[]>([]);
   const levelStart = useRef<number>(Date.now());
   const levelWrongs = useRef<number>(0);
 
-  // A fresh level resets its wrong-count and timer (rabbit-hole re-entries stay
-  // on the same level, so their wrongs accumulate until it is solved).
   useEffect(() => {
     levelStart.current = Date.now();
     levelWrongs.current = 0;
+    setPicked(null);
   }, [currentLevel]);
 
-  // The AI case file loads in the background while the intro modal is up.
   const loadData = () => {
     setLoadError(false);
     setData(null);
-    generateFiveWhysData()
-      .then(d => setData(d))
-      .catch(() => setLoadError(true));
+    generateFiveWhysData().then(d => setData(d)).catch(() => setLoadError(true));
   };
-
   useEffect(loadData, []);
-
-  // Loading safety net: flag an error if the AI call hangs.
   useEffect(() => {
     if (data || loadError) return;
     const timeout = setTimeout(() => setLoadError(true), 15000);
     return () => clearTimeout(timeout);
   }, [data, loadError]);
 
-  // Rabbit-hole penalty countdown; freezes while the shell is paused.
-  useEffect(() => {
-      if (gameState !== 'playing' || rabbitHoleTime <= 0) return;
-      const timer = setInterval(() => {
-          setRabbitHoleTime(t => {
-              if (t <= 1) {
-                  setFeedback('');
-                  setUserAnswer('');
-                  return 0;
-              }
-              return t - 1;
-          });
-      }, 1000);
-      return () => clearInterval(timer);
-  }, [gameState, rabbitHoleTime > 0]);
+  // Shuffle each level's options once per loaded case so the correct option
+  // isn't always in the same slot.
+  const shuffledLevels = useMemo(
+    () => data?.levels.map(l => ({ ...l, options: shuffle(l.options) })) ?? [],
+    [data]
+  );
 
-  const handleSubmit = async () => {
-      if (!userAnswer.trim() || !data || validating) return;
-
-      setValidating(true);
-      setServiceNotice('');
-      const levelData = data.levels[currentLevel];
-
-      // AI Semantic Check. A grader outage (fallback flag or network error)
-      // must not be scored as a wrong answer - no rabbit hole, no penalty.
-      let result;
-      try {
-          result = await validateTextAnswer(
-              userAnswer,
-              levelData.idealAnswer,
-              `Problem: ${data.problemStatement}. Previous Cause: ${currentLevel > 0 ? data.levels[currentLevel-1].idealAnswer : 'Initial Problem'}`
-          );
-      } catch {
-          result = { isCorrect: false, feedback: '', similarity: 0, serviceUnavailable: true };
-      }
-
-      setValidating(false);
-
-      if (result.serviceUnavailable) {
-          setServiceNotice('سرویس ارزیابی هوش مصنوعی موقتاً در دسترس نیست؛ پاسخ شما بررسی نشد. لطفاً دوباره تلاش کنید.');
-          return;
-      }
-
-      const lastLevel = data.levels.length - 1;
-      if (result.isCorrect) {
-          levelLogs.current.push({
-            level: currentLevel,
-            similarity: typeof result.similarity === 'number' ? result.similarity : 0,
-            wrongCount: levelWrongs.current,
-            timeMs: Date.now() - levelStart.current,
-          });
-          setScore(s => s + 20);
-          if (currentLevel < lastLevel) {
-              sfx.playSuccess();
-              setCurrentLevel(l => l + 1);
-              setUserAnswer('');
-              setFeedback(''); // Clear feedback for next level
-          } else {
-              sfx.playSuccess();
-              setGameState('finished');
-          }
-      } else {
-          // Enter Rabbit Hole
-          sfx.playError();
-          levelWrongs.current += 1;
-          setFeedback(result.feedback || "این علت اصلی نیست. شما وارد مسیر فرعی شدید.");
-          setScore(s => Math.max(0, s - 5));
-          setRabbitHoleTime(5); // 5 seconds penalty
-      }
-  };
-
-  // Canned offline OR malformed content must not be recorded as a real result.
   const isFallback = data?._fallback === true || (!!data && !isValidFiveWhys(data));
-  const levelCount = data?.levels.length ?? 5;
+  const levelCount = shuffledLevels.length || 5;
+  const levelData = shuffledLevels[currentLevel];
+
+  const handlePick = (idx: number) => {
+    if (!levelData || picked !== null) return;
+    const option = levelData.options[idx];
+    setPicked(idx);
+
+    if (option.isRootCausePath) {
+      sfx.playSuccess();
+      levelLogs.current.push({
+        level: currentLevel,
+        wrongCount: levelWrongs.current,
+        timeMs: Date.now() - levelStart.current,
+      });
+      setScore(s => s + 20);
+      const solvedText = option.text;
+      setTimeout(() => {
+        if (currentLevel < shuffledLevels.length - 1) {
+          setChain(c => [...c, solvedText]);
+          setCurrentLevel(l => l + 1);
+        } else {
+          setChain(c => [...c, solvedText]);
+          setGameState('finished');
+        }
+      }, 1100);
+    } else {
+      // Soft correction: show why this is a symptom / lateral / jump, then let
+      // them try again on the same level. No timed lockout.
+      sfx.playError();
+      levelWrongs.current += 1;
+      setScore(s => Math.max(0, s - 5));
+      setTimeout(() => setPicked(null), 1400);
+    }
+  };
 
   if (gameState === 'finished' && data) {
     const logs = levelLogs.current;
     const n = Math.max(1, logs.length);
-    // Precision: how close each accepted answer was to an ideal cause (grader
-    // similarity). Directness: share of levels solved without a wrong branch —
-    // a clean causal chain vs. flailing through symptoms.
-    const precision = logs.reduce((s, l) => s + Math.max(0, Math.min(100, l.similarity)), 0) / n;
     const firstTry = logs.filter(l => l.wrongCount === 0).length;
-    const directness = (firstTry / n) * 100;
     const totalWrong = logs.reduce((s, l) => s + l.wrongCount, 0);
+    // Precision: share of levels where the true deeper cause was spotted on the
+    // first pick. Directness: correct picks over total picks — a clean chain vs.
+    // detouring through symptoms.
+    const precision = (firstTry / n) * 100;
+    const directness = (n / (n + totalWrong)) * 100;
     const finalScore = Math.round(precision * 0.5 + directness * 0.5);
 
     const dimensions: RubricDimension[] = [
-      { label: 'دقت علّی (تطابق با ریشه)', value: precision },
+      { label: 'دقت علّی (تشخیص علت از نشانه)', value: precision },
       { label: 'مسیر مستقیم (بدون انحراف)', value: directness },
     ];
-    const strength = directness >= precision
-      ? 'زنجیره علت را مستقیم و بدون انحراف به سمت ریشه می‌سازید.'
-      : 'پاسخ‌های شما از نظر معنایی به علت ریشه‌ای نزدیک است.';
+    const strength = precision >= directness
+      ? 'علت عمیق‌تر را از میان نشانه‌ها به‌خوبی و اغلب در نگاه اول تشخیص می‌دهید.'
+      : 'با وجود چند انحراف، در نهایت زنجیره علت را تا ریشه دنبال می‌کنید.';
     const blindSpot = totalWrong === 0
-      ? 'برای رشد بیشتر، عمق و دقت بیشتری به علت‌های ریشه‌ای بدهید.'
-      : directness < 60
-      ? 'گاهی نشانه (symptom) را به‌جای علت (cause) دنبال می‌کنید و وارد مسیر فرعی می‌شوید.'
-      : 'در چند سطح، پیش از رسیدن به علت درست، مسیر فرعی رفتید.';
+      ? 'برای رشد بیشتر، سناریوهای پیچیده‌تری را با همین دقت تمرین کنید.'
+      : precision < 60
+      ? 'گاهی نشانه (symptom) یا راه‌حل عجولانه را به‌جای علت (cause) انتخاب می‌کنید.'
+      : 'در چند سطح، پیش از رسیدن به علت درست، گزینه انحرافی را انتخاب کردید.';
 
     const payload = {
       subject: '5whys',
@@ -178,8 +151,7 @@ const FiveWhysGame: React.FC<Props> = ({ onExit, onComplete }) => {
 
     const reset = () => {
       levelLogs.current = []; levelWrongs.current = 0; levelStart.current = Date.now();
-      setCurrentLevel(0); setScore(0); setUserAnswer(''); setFeedback('');
-      setRabbitHoleTime(0); setGameState('playing');
+      setCurrentLevel(0); setScore(0); setChain([]); setPicked(null); setGameState('playing');
     };
 
     return (
@@ -196,17 +168,17 @@ const FiveWhysGame: React.FC<Props> = ({ onExit, onComplete }) => {
     );
   }
 
-  const levelData = data?.levels[currentLevel];
-  const inRabbitHole = rabbitHoleTime > 0;
+  const pickedOption = picked !== null && levelData ? levelData.options[picked] : null;
+  const pickedWrong = pickedOption !== null && !pickedOption.isRootCausePath;
 
   return (
     <GameShell
         title="متدولوژی ۵ چرا"
-        description="با پرسیدن مکرر «چرا» زنجیره علت و معلول را دنبال کنید تا به ریشه واقعی مشکل برسید. پاسخ‌های شما توسط هوش مصنوعی تحلیل معنایی می‌شود."
+        description="با پرسیدن مکرر «چرا» زنجیره علت و معلول را دنبال کنید. در هر گام، از میان سه گزینه، علتِ یک‌قدم‌عمیق‌تر را (نه نشانه و نه راه‌حل عجولانه) انتخاب کنید تا به ریشه واقعی برسید."
         instructions={[
-            'صورت مسئله را بخوانید و علت مستقیم آن را بنویسید.',
-            'هر پاسخ درست، یک سطح عمیق‌تر می‌برد تا به ریشه برسید.',
-            'پاسخ سطحی یا انحرافی شما را وارد «مسیر فرعی» با جریمه زمانی می‌کند.',
+            'صورت مسئله یک نشانه (symptom) کاری است؛ علت زیرین آن را پیدا کنید.',
+            'در هر سطح، گزینه‌ای را انتخاب کنید که یک قدم واقعی عمیق‌تر می‌رود.',
+            'گزینه‌های انحرافی یا بازگویی نشانه یا پریدن به راه‌حل هستند؛ از آن‌ها پرهیز کنید.',
         ]}
         icon={<Search />}
         stats={{ score }}
@@ -215,8 +187,7 @@ const FiveWhysGame: React.FC<Props> = ({ onExit, onComplete }) => {
         setGameState={setGameState}
         colorTheme="amber"
     >
-      <div className={`h-full w-full flex flex-col p-6 overflow-y-auto rounded-3xl transition-colors duration-500 ${inRabbitHole ? 'bg-red-950' : 'bg-slate-900'} text-slate-100`}>
-
+      <div className="h-full w-full flex flex-col p-6 overflow-y-auto rounded-3xl bg-slate-900 text-slate-100">
         {!data && !loadError && (
             <div className="flex-1 flex flex-col items-center justify-center animate-fade-in-up">
                 <Loader2 className="animate-spin w-10 h-10 text-amber-500 mb-4" />
@@ -236,7 +207,7 @@ const FiveWhysGame: React.FC<Props> = ({ onExit, onComplete }) => {
         )}
 
         {data && levelData && (
-          <div className="max-w-2xl mx-auto w-full flex-1 flex flex-col relative">
+          <div className="max-w-2xl mx-auto w-full flex-1 flex flex-col">
             {isFallback && (
                 <div className="mb-4 bg-amber-500/15 border border-amber-500/40 text-amber-300 px-4 py-2 rounded-xl text-xs font-bold text-center">
                     نسخه آفلاین — این اجرا در کارنامه ثبت نمی‌شود.
@@ -244,70 +215,70 @@ const FiveWhysGame: React.FC<Props> = ({ onExit, onComplete }) => {
             )}
             <div className="text-center text-xs text-slate-500 font-bold mb-4">سطح {toPersianNum(currentLevel + 1)} از {toPersianNum(levelCount)}</div>
 
-            {/* Chain History */}
-            <div className="space-y-4 mb-8 opacity-60 hover:opacity-100 transition-opacity">
-                <div className="flex items-center gap-3 text-sm font-bold text-slate-400">
-                    <AlertTriangle size={16} /> صورت مسئله: {data.problemStatement}
+            {/* Chain history */}
+            <div className="space-y-3 mb-6">
+                <div className="flex items-start gap-3 text-sm font-bold text-slate-300 bg-slate-800/40 border border-slate-700 rounded-xl p-3">
+                    <AlertTriangle size={16} className="text-amber-400 shrink-0 mt-0.5" /> <span>صورت مسئله: {data.problemStatement}</span>
                 </div>
-                {data.levels.slice(0, currentLevel).map((lvl, idx) => (
-                    <div key={idx} className="flex items-start gap-3 ml-4 border-l-2 border-slate-700 pl-4 py-1">
-                        <ArrowDown size={14} className="mt-1 text-emerald-500" />
+                {chain.map((cause, idx) => (
+                    <div key={idx} className="flex items-start gap-3 mr-4 border-r-2 border-emerald-700/50 pr-4 py-1">
+                        <ArrowDown size={14} className="mt-1 text-emerald-500 shrink-0" />
                         <div>
-                            <div className="text-xs text-slate-500">چرا {idx + 1}</div>
-                            <div className="text-emerald-400">{lvl.idealAnswer}</div>
+                            <div className="text-xs text-slate-500">چرا {toPersianNum(idx + 1)}</div>
+                            <div className="text-emerald-400 text-sm">{cause}</div>
                         </div>
                     </div>
                 ))}
             </div>
 
-            {/* Current Question */}
-            <div className="bg-slate-800/50 p-6 rounded-2xl border border-slate-700 mb-6 shadow-xl animate-slide-in-right">
-                <h1 className="text-2xl md:text-3xl font-bold text-white mb-2 leading-tight">
+            {/* Current question */}
+            <div className="bg-slate-800/50 p-5 rounded-2xl border border-slate-700 mb-5 shadow-xl animate-slide-in-right">
+                <h1 className="text-xl md:text-2xl font-bold text-white mb-2 leading-tight">
                     {levelData.question}
                 </h1>
                 <p className="text-slate-400 text-sm flex items-center gap-2 mt-2">
-                    <HelpCircle size={14} /> راهنمایی: {levelData.hint}
+                    <HelpCircle size={14} className="shrink-0" /> راهنمایی: {levelData.hint}
                 </p>
             </div>
 
-            {/* Rabbit Hole Overlay / Input */}
-            {inRabbitHole ? (
-                <div className="flex-1 flex flex-col items-center justify-center text-center animate-shake">
-                    <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mb-4">
-                        <XCircle className="text-red-500 w-8 h-8" />
+            {/* Options */}
+            <div className="grid grid-cols-1 gap-3">
+              {levelData.options.map((opt, idx) => {
+                const isPicked = picked === idx;
+                let cls = 'bg-slate-800 border-slate-700 hover:border-amber-500/50 cursor-pointer';
+                if (picked !== null) {
+                  if (isPicked) cls = opt.isRootCausePath
+                    ? 'bg-emerald-900/30 border-emerald-500/60 ring-1 ring-emerald-500'
+                    : 'bg-red-900/30 border-red-500/60 ring-1 ring-red-500';
+                  else cls = 'bg-slate-900 border-slate-800 opacity-40';
+                }
+                return (
+                  <button
+                    key={idx}
+                    disabled={picked !== null}
+                    onClick={() => handlePick(idx)}
+                    className={`w-full text-right p-4 rounded-2xl border-2 transition-all flex flex-col gap-2 ${cls}`}
+                  >
+                    <div className="flex items-start justify-between w-full gap-3">
+                      <span className="font-bold text-sm md:text-base text-slate-200 leading-relaxed">{opt.text}</span>
+                      {isPicked && (opt.isRootCausePath
+                        ? <CheckCircle2 className="text-emerald-500 shrink-0" size={20} />
+                        : <XCircle className="text-red-500 shrink-0" size={20} />)}
                     </div>
-                    <h3 className="text-xl font-bold text-red-400 mb-2">مسیر اشتباه (Rabbit Hole)</h3>
-                    <p className="text-red-200 mb-6 max-w-md">{feedback}</p>
-                    <div className="text-4xl font-black text-white animate-pulse">{toPersianNum(rabbitHoleTime)}s</div>
-                    <p className="text-xs text-red-300 mt-2">جریمه زمانی...</p>
-                </div>
-            ) : (
-                <div className="mt-auto">
-                    {serviceNotice && (
-                        <div className="mb-4 flex items-start gap-2 bg-amber-500/10 border border-amber-500/40 text-amber-300 text-sm font-bold rounded-xl p-4 animate-fade-in">
-                            <AlertTriangle size={18} className="shrink-0 mt-0.5" />
-                            {serviceNotice}
-                        </div>
+                    {isPicked && opt.feedback && (
+                      <div className={`mt-1 text-sm p-3 rounded-xl w-full text-right ${opt.isRootCausePath ? 'bg-emerald-500/10 text-emerald-200' : 'bg-red-500/10 text-red-200'}`}>
+                        {opt.feedback}
+                      </div>
                     )}
-                    <div className="relative">
-                        <textarea
-                            value={userAnswer}
-                            onChange={(e) => setUserAnswer(e.target.value)}
-                            placeholder="علت را اینجا بنویسید..."
-                            className="w-full bg-slate-800 text-white rounded-xl p-4 pr-12 min-h-[120px] border border-slate-600 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-all resize-none text-lg"
-                            onKeyDown={(e) => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmit(); }}}
-                        />
-                        <button
-                            onClick={handleSubmit}
-                            disabled={validating || !userAnswer.trim()}
-                            className="absolute bottom-4 left-4 p-3 bg-amber-500 text-slate-900 rounded-lg hover:bg-amber-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-amber-500/20"
-                        >
-                            {validating ? <Loader2 className="animate-spin" /> : <Send size={20} />}
-                        </button>
-                    </div>
-                    <p className="text-center text-xs text-slate-500 mt-4">پاسخ شما توسط هوش مصنوعی تحلیل می‌شود.</p>
-                </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {pickedWrong && (
+              <p className="text-center text-xs text-red-300 mt-4 animate-fade-in">این علت اصلی نیست؛ دوباره تلاش کنید.</p>
             )}
+            <p className="text-center text-xs text-slate-500 mt-4">علتِ یک‌قدم‌عمیق‌تر را انتخاب کنید، نه نشانه یا راه‌حل را.</p>
           </div>
         )}
       </div>

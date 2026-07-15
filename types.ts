@@ -211,7 +211,10 @@ export interface FiveWhysData {
   levels: {
     level: number;
     question: string;
-    idealAnswer: string; // Used for semantic matching
+    // Pick-the-deeper-cause: exactly one option is the genuine next cause in
+    // the chain (isRootCausePath), the others are symptoms / lateral blame /
+    // premature solutions. Deterministic — no per-answer AI grading.
+    options: { text: string; isRootCausePath: boolean; feedback: string }[];
     hint: string;
   }[];
   _fallback?: boolean;

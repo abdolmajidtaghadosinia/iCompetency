@@ -155,8 +155,18 @@ function ai_spec_coaching_tip(array $p): array
 
 function ai_spec_five_whys(): array
 {
-    $level = schema_object(['level'=>int_schema(),'question'=>str_schema(),'idealAnswer'=>str_schema(),'hint'=>str_schema()], ['level','question','idealAnswer','hint']);
-    return ['prompt'=>'Generate a Persian 5 Whys root-cause scenario with exactly 5 levels. Return JSON only.', 'schema'=>schema_object(['problemStatement'=>str_schema(),'levels'=>schema_array($level)], ['problemStatement','levels']), 'fallback'=>five_whys_fallback()];
+    $opt = schema_object(['text'=>str_schema(),'isRootCausePath'=>bool_schema(),'feedback'=>str_schema()], ['text','isRootCausePath','feedback']);
+    $level = schema_object(['level'=>int_schema(),'question'=>str_schema(),'options'=>schema_array($opt),'hint'=>str_schema()], ['level','question','options','hint']);
+    $prompt = 'Generate a 5 Whys root-cause analysis for a WORKPLACE / BUSINESS-PROCESS problem. Return JSON only. ALL human-readable text MUST be fluent, natural PERSIAN (Farsi).'
+        ."\nHARD CONSTRAINT: the problem MUST be an organizational/business issue solvable by a MANAGER without any specialist technical knowledge — e.g. delivery delays, customer complaints, missed deadlines, high staff turnover, declining sales, low meeting attendance, service-quality drops, budget overruns. NEVER use car repair, machinery, electronics, medical, or any domain that needs a technician/expert to diagnose."
+        ."\n- problemStatement: ONE Persian sentence describing an OBSERVABLE business symptom."
+        ."\n- levels: EXACTLY 5, drilling from the symptom down to a SYSTEMIC root cause (a process gap, unclear ownership, a policy, an incentive, or a communication failure). The final root cause must be systemic — NEVER \"a person was lazy/careless\"."
+        ."\n- each level.question: a Persian \"چرا …؟\" that asks why the PREVIOUS level's chosen cause happens (level 1 asks why the problemStatement happens)."
+        ."\n- each level: EXACTLY 3 Persian options. EXACTLY ONE has isRootCausePath:true = the genuine next-deeper cause. The other two are realistic distractors: (a) one that merely restates the symptom or stays at the same depth, and (b) one that jumps to a solution or blames an external party/person."
+        ."\n- CHAIN CONSISTENCY: the isRootCausePath option text of level N must be exactly what level N+1's question asks \"چرا\" about."
+        ."\n- each option.feedback: 1-2 Persian sentences. For the correct one, explain why it goes one real level deeper. For wrong ones, explain that it is a symptom / lateral blame / premature solution — teach the difference between نشانه (symptom) and علت (cause)."
+        ."\n- hint: a short Persian nudge toward finding the deeper cause.";
+    return ['prompt'=>$prompt, 'schema'=>schema_object(['problemStatement'=>str_schema(),'levels'=>schema_array($level)], ['problemStatement','levels']), 'fallback'=>five_whys_fallback()];
 }
 
 function ai_spec_validate_text(array $p): array
@@ -178,7 +188,15 @@ function ai_spec_cynefin(): array
 {
     $opt = schema_object(['text'=>str_schema(),'isCorrect'=>bool_schema(),'feedback'=>str_schema()], ['text','isCorrect','feedback']);
     $sc = schema_object(['description'=>str_schema(),'correctDomain'=>str_schema(),'options'=>schema_array($opt)], ['description','correctDomain','options']);
-    return ['prompt'=>'Generate 5 Persian Cynefin scenarios with options and feedback. Return JSON only.', 'schema'=>schema_object(['scenarios'=>schema_array($sc)], ['scenarios']), 'fallback'=>cynefin_fallback()];
+    $prompt = 'Generate 5 Cynefin decision scenarios for a workplace/management context. Return JSON only.'
+        ."\nCRITICAL LANGUAGE RULE: every human-readable field (description, every option.text, every option.feedback) MUST be written in fluent, natural PERSIAN (Farsi). Never output English sentences or English words as the option text. Do NOT put the domain name as the option text."
+        ."\n- scenarios: EXACTLY 5, covering a mix of domains (at least one clear, one complicated, one complex, one chaotic)."
+        ."\n- description: 2-3 Persian sentences describing a concrete, specific workplace situation (a real management dilemma, not an abstract puzzle)."
+        ."\n- correctDomain: this is a MACHINE KEY, keep it lowercase English, exactly one of: \"clear\", \"complicated\", \"complex\", \"chaotic\"."
+        ."\n- options: EXACTLY 4 concrete MANAGEMENT ACTIONS phrased in first person Persian (e.g. \"طبق دستورالعمل استاندارد و آزموده عمل می‌کنم\"، \"از یک متخصص می‌خواهم وضعیت را تحلیل کند\"، \"چند آزمایش کوچک و کم‌ریسک اجرا می‌کنم تا یاد بگیرم\"، \"فوراً برای مهار بحران اقدام می‌کنم\"). The action text must describe WHAT the manager does, never just name a domain."
+        ."\n- EXACTLY ONE option has isCorrect:true — the action whose response pattern matches the correct domain (clear=apply best practice, complicated=expert analysis, complex=safe-to-fail probes, chaotic=act first to stabilize then sense)."
+        ."\n- each option.feedback: 1-2 Persian sentences explaining why that action fits or does not fit the situation.";
+    return ['prompt'=>$prompt, 'schema'=>schema_object(['scenarios'=>schema_array($sc)], ['scenarios']), 'fallback'=>cynefin_fallback()];
 }
 
 function ai_spec_sjt(): array
@@ -256,12 +274,36 @@ function ai_spec_fact_finding(): array
 
 function five_whys_fallback(): array
 {
-    return ['problemStatement'=>'مشتریان از تاخیر در تحویل کالا شکایت دارند.','levels'=>[
-        ['level'=>1,'question'=>'چرا تحویل کالا با تاخیر انجام می‌شود؟','idealAnswer'=>'کالاها در انبار آماده ارسال نیستند','hint'=>'مشکل در موجودی یا پردازش است.'],
-        ['level'=>2,'question'=>'چرا کالاها در انبار آماده نیستند؟','idealAnswer'=>'زمان تولید طولانی شده است','hint'=>'به خط تولید نگاه کنید.'],
-        ['level'=>3,'question'=>'چرا زمان تولید طولانی شده است؟','idealAnswer'=>'قطعات اولیه کمبود دارد','hint'=>'مشکل زنجیره تامین.'],
-        ['level'=>4,'question'=>'چرا قطعات اولیه کمبود دارد؟','idealAnswer'=>'تامین‌کننده به موقع ارسال نکرده','hint'=>'عامل خارجی.'],
-        ['level'=>5,'question'=>'چرا تامین‌کننده به موقع ارسال نکرده؟','idealAnswer'=>'قرارداد ما اولویت خرید را تضمین نکرده است','hint'=>'مشکل قرارداد.'],
+    // A clean workplace chain: delivery delays -> slow dispatch -> slow packing
+    // -> disorganized warehouse -> no layout standard -> ownership never assigned
+    // in the setup process (systemic root). Each level: 1 real cause + a symptom
+    // restatement + a solution-jump / external-blame distractor.
+    return ['problemStatement'=>'مشتریان به‌طور مکرر از تأخیر در تحویل سفارش‌ها شکایت می‌کنند.','levels'=>[
+        ['level'=>1,'question'=>'چرا سفارش‌ها با تأخیر به دست مشتری می‌رسند؟','hint'=>'یک قدم به داخل فرایند برگردید، نه به احساس مشتری.','options'=>[
+            ['text'=>'چون سفارش‌ها دیر از انبار خارج و ارسال می‌شوند.','isRootCausePath'=>true,'feedback'=>'درست است؛ این یک قدم عمیق‌تر از نشانه است و ما را به داخل فرایند انبار می‌برد.'],
+            ['text'=>'چون مشتریان از تأخیر ناراضی و عصبانی هستند.','isRootCausePath'=>false,'feedback'=>'این فقط بازگویی خودِ نشانه است، نه یک علت عمیق‌تر.'],
+            ['text'=>'باید یک شرکت پستی سریع‌تر استخدام کنیم.','isRootCausePath'=>false,'feedback'=>'این پریدن به راه‌حل است پیش از یافتن علت؛ هنوز نمی‌دانیم تأخیر از کجاست.'],
+        ]],
+        ['level'=>2,'question'=>'چرا سفارش‌ها دیر از انبار خارج می‌شوند؟','hint'=>'کدام مرحله در انبار زمان می‌برد؟','options'=>[
+            ['text'=>'چون آماده‌سازی و بسته‌بندی هر سفارش زمان زیادی می‌برد.','isRootCausePath'=>true,'feedback'=>'درست است؛ به مرحله مشخصی از کار انبار رسیدیم.'],
+            ['text'=>'چون کارکنان انبار کم‌کار و بی‌انگیزه‌اند.','isRootCausePath'=>false,'feedback'=>'سرزنش افراد، مسیر تحلیل ریشه‌ای را می‌بندد؛ دنبال علت فرایندی بگردید.'],
+            ['text'=>'چون تعداد سفارش‌ها زیاد است.','isRootCausePath'=>false,'feedback'=>'این یک عامل بیرونی است و توضیح نمی‌دهد چرا خودِ فرایند کند است.'],
+        ]],
+        ['level'=>3,'question'=>'چرا آماده‌سازی و بسته‌بندی هر سفارش زمان زیادی می‌برد؟','hint'=>'در حین بسته‌بندی، بیشترین وقت صرف چه می‌شود؟','options'=>[
+            ['text'=>'چون پیدا کردن اقلام در انبار کند است و کارکنان دنبال آن‌ها می‌گردند.','isRootCausePath'=>true,'feedback'=>'درست است؛ به علتِ زیرین یعنی نحوه چیدمان انبار نزدیک شدیم.'],
+            ['text'=>'چون بسته‌بندی کار زمان‌بری است.','isRootCausePath'=>false,'feedback'=>'این تقریباً همان سطح قبل را تکرار می‌کند و عمیق‌تر نمی‌رود.'],
+            ['text'=>'باید همین حالا نیروی بیشتری برای بسته‌بندی استخدام کنیم.','isRootCausePath'=>false,'feedback'=>'پریدن به راه‌حل؛ افزودن نیرو ممکن است فقط ناکارآمدی را بزرگ‌تر کند.'],
+        ]],
+        ['level'=>4,'question'=>'چرا پیدا کردن اقلام در انبار کند است؟','hint'=>'به نظمِ چیدمان فکر کنید، نه اندازه انبار.','options'=>[
+            ['text'=>'چون اقلام بدون نظم و جای مشخص چیده شده‌اند.','isRootCausePath'=>true,'feedback'=>'درست است؛ حالا به یک ضعف ساختاری رسیدیم، نه یک اتفاق موردی.'],
+            ['text'=>'چون انبار کوچک و شلوغ است.','isRootCausePath'=>false,'feedback'=>'اندازه انبار یک عامل بیرونی است؛ حتی انبار بزرگ هم بی‌نظم می‌تواند کند باشد.'],
+            ['text'=>'چون انباردار حواسش به جای اقلام نیست.','isRootCausePath'=>false,'feedback'=>'سرزنش فرد؛ مسئله نبودِ یک نظام چیدمان است، نه دقتِ یک نفر.'],
+        ]],
+        ['level'=>5,'question'=>'چرا اقلام بدون نظم و جای مشخص چیده شده‌اند؟','hint'=>'ریشه معمولاً یک خلأ در فرایند یا مسئولیت است.','options'=>[
+            ['text'=>'چون هنگام راه‌اندازی انبار، طراحی و تعریف استاندارد چیدمان جزو مسئولیت هیچ واحدی تعریف نشده بود.','isRootCausePath'=>true,'feedback'=>'ریشه سیستمی همین‌جاست: یک خلأ در تعریف مسئولیت و فرایند، که با استانداردسازی و تعیین متولی حل می‌شود.'],
+            ['text'=>'چون تا حالا کسی رسماً شکایت نکرده بود.','isRootCausePath'=>false,'feedback'=>'نبودِ شکایت، علتِ بی‌نظمی نیست؛ فقط توضیح می‌دهد چرا زودتر دیده نشد.'],
+            ['text'=>'باید فوراً یک نرم‌افزار انبارداری گران بخریم.','isRootCausePath'=>false,'feedback'=>'پریدن به راه‌حل پیش از فهم ریشه؛ ابزار بدون تعریف مسئولیت و استاندارد هم کارساز نیست.'],
+        ]],
     ]];
 }
 
@@ -281,15 +323,58 @@ function swot_fallback(): array
 
 function cynefin_fallback(): array
 {
-    return ['scenarios'=>[[
-        'description'=>'آتش‌سوزی در دیتاسنتر اصلی رخ داده و سیستم‌ها قطع شده‌اند.',
-        'correctDomain'=>'Chaotic',
-        'options'=>[
-            ['text'=>'ابتدا جلسه تحلیل علت ریشه‌ای برگزار می‌کنیم.','isCorrect'=>false,'feedback'=>'در آشوب وقت تحلیل عمیق نیست.'],
-            ['text'=>'دستورالعمل استاندارد تعویض سرور را چک می‌کنیم.','isCorrect'=>false,'feedback'=>'وضعیت بحرانی و بی‌ثبات است.'],
-            ['text'=>'فوراً اقدام به اطفای حریق و ایزوله کردن سیستم می‌کنیم.','isCorrect'=>true,'feedback'=>'صحیح؛ در Chaotic اول اقدام است.'],
+    return ['scenarios'=>[
+        [
+            'description'=>'یک کارمند جدید باید فرم‌های مرخصی را ثبت کند. فرایند کاملاً مشخص و مستند است و همه ماه‌هاست همین‌طور کار می‌کنند.',
+            'correctDomain'=>'clear',
+            'options'=>[
+                ['text'=>'همان دستورالعمل استاندارد و مستندشده را مرحله‌به‌مرحله اجرا می‌کنم.','isCorrect'=>true,'feedback'=>'درست است؛ در موقعیت ساده، رابطه علت و معلول روشن است و بهترین‌روشِ آزموده باید اجرا شود.'],
+                ['text'=>'یک تیم تحلیل تشکیل می‌دهم تا بهترین راه ثبت مرخصی را پیدا کند.','isCorrect'=>false,'feedback'=>'برای یک کار روشن و تکراری، تحلیل تخصصی اتلاف منابع است.'],
+                ['text'=>'چند روش مختلف را به‌صورت آزمایشی امتحان می‌کنم تا ببینم کدام جواب می‌دهد.','isCorrect'=>false,'feedback'=>'آزمایش وقتی لازم است که پاسخ نامعلوم باشد؛ اینجا پاسخ از پیش روشن است.'],
+                ['text'=>'بدون بررسی، فوراً یک تصمیم اضطراری می‌گیرم.','isCorrect'=>false,'feedback'=>'هیچ بحرانی در کار نیست که اقدام فوری بطلبد.'],
+            ],
         ],
-    ]]];
+        [
+            'description'=>'زمان تحویل محصولات کارخانه بیشتر از حد انتظار شده است. داده‌ها موجودند اما علت دقیق مشخص نیست و به بررسی فنی نیاز دارد.',
+            'correctDomain'=>'complicated',
+            'options'=>[
+                ['text'=>'از کارشناسان فرایند می‌خواهم داده‌ها را تحلیل کنند و گلوگاه را پیدا کنیم.','isCorrect'=>true,'feedback'=>'درست است؛ در موقعیت پیچیده، پاسخ با تحلیل تخصصیِ خبرگان کشف می‌شود.'],
+                ['text'=>'همان رویه همیشگی را ادامه می‌دهم چون قبلاً جواب داده.','isCorrect'=>false,'feedback'=>'مشکلی پدید آمده که رویه فعلی پاسخش را ندارد؛ نیاز به تحلیل است.'],
+                ['text'=>'خط تولید را تعطیل می‌کنم و اضطراری تصمیم می‌گیرم.','isCorrect'=>false,'feedback'=>'وضعیت بحرانی و بی‌ثبات نیست؛ اقدام عجولانه ریسک بی‌مورد است.'],
+                ['text'=>'چند تغییر تصادفی اعمال می‌کنم تا ببینم چه می‌شود.','isCorrect'=>false,'feedback'=>'وقتی می‌توان با تحلیل به پاسخ رسید، آزمون‌وخطای کور لازم نیست.'],
+            ],
+        ],
+        [
+            'description'=>'می‌خواهید یک محصول کاملاً جدید وارد بازاری بکنید که رفتار مشتریانش را نمی‌شناسید و هیچ تجربه مشابهی وجود ندارد.',
+            'correctDomain'=>'complex',
+            'options'=>[
+                ['text'=>'چند نسخه کوچک و کم‌هزینه را در بازار آزمایش می‌کنم و از واکنش‌ها یاد می‌گیرم.','isCorrect'=>true,'feedback'=>'درست است؛ در موقعیت پیچیده‌پویا، با آزمایش‌های امن‌به‌شکست الگو را کشف می‌کنید.'],
+                ['text'=>'یک برنامه بزرگ و قطعی می‌نویسم و کامل اجرا می‌کنم.','isCorrect'=>false,'feedback'=>'وقتی رابطه علت و معلول از پیش معلوم نیست، تعهد کامل به یک برنامه پرریسک است.'],
+                ['text'=>'از یک متخصص می‌خواهم پاسخ قطعی بدهد.','isCorrect'=>false,'feedback'=>'در فضای نوظهور، حتی خبره هم پاسخ قطعی ندارد؛ باید آزمود.'],
+                ['text'=>'دقیقاً همان کاری را می‌کنم که رقبا در بازار دیگری کردند.','isCorrect'=>false,'feedback'=>'تقلید از زمینه‌ای متفاوت، الگوی این بازار ناشناخته را نمی‌سازد.'],
+            ],
+        ],
+        [
+            'description'=>'نشت گسترده اطلاعات مشتریان همین الان در حال رخ دادن است، سیستم‌ها ناپایدارند و هر لحظه خسارت بیشتر می‌شود.',
+            'correctDomain'=>'chaotic',
+            'options'=>[
+                ['text'=>'فوراً برای مهار نشت و پایدارسازی سیستم اقدام می‌کنم، بعد وضعیت را ارزیابی می‌کنم.','isCorrect'=>true,'feedback'=>'درست است؛ در آشوب، اول باید عمل کرد تا ثبات برقرار شود، سپس حس و پاسخ.'],
+                ['text'=>'ابتدا یک جلسه تحلیل ریشه‌ای دو ساعته می‌گذارم.','isCorrect'=>false,'feedback'=>'در بحران فعال، وقت برای تحلیل عمیق نیست؛ خسارت لحظه‌به‌لحظه بیشتر می‌شود.'],
+                ['text'=>'منتظر می‌مانم تا دستورالعمل استاندارد را پیدا کنم.','isCorrect'=>false,'feedback'=>'وضعیت بی‌ثبات‌تر از آن است که رویه از پیش‌نوشته پاسخگو باشد.'],
+                ['text'=>'چند راه‌حل را به‌آرامی آزمایش می‌کنم.','isCorrect'=>false,'feedback'=>'آزمایش تدریجی برای فضای پیچیده است، نه بحران آشوبناکِ در حال وقوع.'],
+            ],
+        ],
+        [
+            'description'=>'مدیرعامل از شما گزارشی درباره وضعیت یک پروژه می‌خواهد، اما هنوز روشن نیست مشکل پروژه دقیقاً از چه جنسی است.',
+            'correctDomain'=>'complicated',
+            'options'=>[
+                ['text'=>'ابتدا داده‌های پروژه را جمع می‌کنم و با کارشناسان تحلیل می‌کنم تا ماهیت مشکل روشن شود.','isCorrect'=>true,'feedback'=>'درست است؛ وقتی داده هست ولی علت مبهم است، تحلیل تخصصی راه رسیدن به پاسخ است.'],
+                ['text'=>'بدون بررسی، یک تصمیم اضطراری و فوری می‌گیرم.','isCorrect'=>false,'feedback'=>'هیچ بحران در حال وقوعی نیست که اقدام آنی بطلبد.'],
+                ['text'=>'همان گزارش قالبیِ همیشگی را بدون تغییر ارسال می‌کنم.','isCorrect'=>false,'feedback'=>'موقعیت به بررسی نیاز دارد؛ رویه آماده پاسخ این ابهام را نمی‌دهد.'],
+                ['text'=>'پروژه را رها می‌کنم تا خودش روشن شود.','isCorrect'=>false,'feedback'=>'انفعال، ابهام را برطرف نمی‌کند و ریسک را بالا می‌برد.'],
+            ],
+        ],
+    ]];
 }
 
 function fact_finding_fallback(): array

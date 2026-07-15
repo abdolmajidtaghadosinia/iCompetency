@@ -30,13 +30,20 @@ const DOMAIN_MAP: Record<string, DomainKey> = {
 const canonicalDomain = (raw: string): DomainKey | null => DOMAIN_MAP[(raw || '').trim().toLowerCase()] ?? null;
 const domainLabel = (k: DomainKey | null) => DOMAINS.find(d => d.key === k)?.label ?? '—';
 
-// Reject malformed AI data so a bad generation never becomes a scored (and
-// unfair) assessment. Invalid data is treated like the offline fallback.
+// The UI is Persian-only; a run whose scenario/options came back in English
+// (a weak generation) must be treated as invalid so it falls to the Persian
+// fallback instead of showing English options as a "real" assessment.
+const hasPersian = (s: string) => /[؀-ۿ]/.test(s || '');
+
+// Reject malformed or non-Persian AI data so a bad generation never becomes a
+// scored (and unfair) assessment. Invalid data is treated like the offline
+// fallback.
 const isValidCynefin = (d: CynefinData | null): boolean =>
   !!d && Array.isArray(d.scenarios) && d.scenarios.length > 0 &&
   d.scenarios.every(s =>
-    !!s && typeof s.description === 'string' && s.description.trim().length > 0 &&
+    !!s && typeof s.description === 'string' && hasPersian(s.description) &&
     Array.isArray(s.options) && s.options.length >= 2 &&
+    s.options.every(o => !!o && typeof o.text === 'string' && hasPersian(o.text)) &&
     s.options.some(o => o.isCorrect) && canonicalDomain(s.correctDomain) !== null);
 
 interface Attempt { correctDomain: DomainKey; domainPick: DomainKey; domainCorrect: boolean; responseCorrect: boolean; }
