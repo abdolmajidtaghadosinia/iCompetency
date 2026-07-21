@@ -351,6 +351,7 @@ function App() {
                     user={user}
                     onStartScenario={() => changeView(AppView.JOURNEY_MAP)}
                     onOpenBigFive={() => changeView(AppView.MINIGAME_BIGFIVE)}
+                    onOpenResume={() => changeView(AppView.VERIFIED_RESUME)}
                     isDarkMode={darkMode}
                     toggleTheme={toggleTheme}
                   />

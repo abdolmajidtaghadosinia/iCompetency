@@ -1,10 +1,11 @@
 
 import React, { useEffect, useState } from 'react';
 import { UserProfile } from '../types';
-import { 
-  Bell, ChevronDown, Settings, ArrowUpRight, 
+import {
+  Bell, ChevronDown, Settings, ArrowUpRight,
   Layers, Calculator, Zap, Box, Compass, Eye, LayoutGrid,
-  Trophy, Moon, Sun, ClipboardCheck, Star, Activity, Play, FileText
+  Trophy, Moon, Sun, ClipboardCheck, Star, Activity, Play, FileText,
+  Briefcase, AlertTriangle
 } from 'lucide-react';
 import { toPersianNum } from '../utils';
 
@@ -12,11 +13,12 @@ interface DashboardProps {
   user: UserProfile;
   onStartScenario: () => void;
   onOpenBigFive: () => void;
+  onOpenResume?: () => void;
   isDarkMode: boolean;
   toggleTheme: () => void;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ user, onStartScenario, onOpenBigFive, isDarkMode, toggleTheme }) => {
+const Dashboard: React.FC<DashboardProps> = ({ user, onStartScenario, onOpenBigFive, onOpenResume, isDarkMode, toggleTheme }) => {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [animateStats, setAnimateStats] = useState(false);
 
@@ -42,6 +44,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onStartScenario, onOpenBigF
   const xpPercentage = Math.min(100, (user.currentXp / user.requiredXp) * 100);
   const avatarLabel = (user.name || user.email || 'U').trim().charAt(0).toUpperCase();
   const accountId = user.id ? `IC-${String(user.id).padStart(6, '0')}` : null;
+
+  // Server-computed O*NET-anchored career fit (docs/career-fit.md); the
+  // dashboard only renders it. Entries without a score (nothing measured yet)
+  // are hidden and drive the empty-state instead.
+  const careerRanked = (user.careerFit ?? []).filter(c => c.fitScore !== null);
+  const careerBest = careerRanked[0];
 
   // Selected Cognitive Skills for the Widget
   const cognitiveStats = [
@@ -304,6 +312,85 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onStartScenario, onOpenBigF
                  </>
                  )}
              </div>
+        </div>
+
+        {/* 5. Career Fit (O*NET-anchored, server-computed) */}
+        <div className="col-span-12 bg-white dark:bg-slate-800 rounded-3xl p-6 md:p-8 shadow-soft dark:shadow-none border border-slate-100 dark:border-slate-700 animate-fade-in-up delay-500">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-6">
+                <div className="flex items-center gap-3">
+                    <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                        <Briefcase size={22} />
+                    </div>
+                    <div>
+                        <h3 className="font-bold text-lg text-slate-900 dark:text-white">تحلیل تناسب شغلی</h3>
+                        <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500">تطبیق پروفایل سنجیده‌شده با الزامات گروه‌های شغلی (مرجع: O*NET)</p>
+                    </div>
+                </div>
+                {onOpenResume && careerBest && (
+                    <button onClick={onOpenResume} className="shrink-0 px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl font-bold text-xs hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors flex items-center gap-1.5">
+                        کارنامه کامل <ArrowUpRight size={14} className="rtl:scale-x-[-1]" />
+                    </button>
+                )}
+            </div>
+
+            {!careerBest ? (
+                <div className="flex flex-col items-center justify-center py-10 text-center">
+                    <div className="w-16 h-16 bg-slate-100 dark:bg-slate-700 rounded-full flex items-center justify-center mb-4">
+                        <Briefcase size={26} className="text-slate-400" />
+                    </div>
+                    <p className="text-slate-500 dark:text-slate-400 font-bold text-sm mb-1">هنوز داده کافی برای تحلیل تناسب شغلی ثبت نشده است.</p>
+                    <p className="text-slate-400 dark:text-slate-500 text-xs">با انجام آزمون‌های شناختی، شخصیت و روش‌شناختی، این بخش فعال می‌شود.</p>
+                </div>
+            ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* Top suggestion */}
+                    <div className="bg-gradient-to-br from-indigo-50 to-violet-50 dark:from-indigo-900/20 dark:to-violet-900/10 border border-indigo-100 dark:border-indigo-800/50 rounded-2xl p-5">
+                        <div className="flex items-center justify-between mb-2">
+                            <span className="text-[10px] font-black text-indigo-500 dark:text-indigo-300 uppercase tracking-wider">پیشنهاد برتر</span>
+                            <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 bg-white/70 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-600 rounded-full px-2 py-0.5" dir="ltr">
+                                O*NET {careerBest.onet} · {careerBest.riasec}
+                            </span>
+                        </div>
+                        <div className="flex items-end justify-between gap-3 mb-1">
+                            <h4 className="text-xl font-black text-slate-900 dark:text-white">{careerBest.title}</h4>
+                            <div className="text-3xl font-black text-indigo-600 dark:text-indigo-400 tabular-nums shrink-0">{toPersianNum(careerBest.fitScore as number)}٪</div>
+                        </div>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mb-3">{careerBest.description}</p>
+                        <div className="flex flex-wrap gap-1.5 mb-3">
+                            {careerBest.strengths.map((s, i) => (
+                                <span key={i} className="text-[10px] font-bold bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-800 px-2 py-1 rounded-lg">{s}</span>
+                            ))}
+                            {careerBest.insufficient && (
+                                <span className="text-[10px] font-bold bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800 px-2 py-1 rounded-lg flex items-center gap-1">
+                                    <AlertTriangle size={10} /> شواهد ناکافی
+                                </span>
+                            )}
+                        </div>
+                        <div className="text-[10px] font-bold text-slate-400 dark:text-slate-500">
+                            پوشش شواهد: {toPersianNum(Math.round(careerBest.coverage * 100))}٪ از مدل الزامات
+                        </div>
+                    </div>
+
+                    {/* Ranked list */}
+                    <div className="flex flex-col justify-center gap-3">
+                        {careerRanked.slice(0, 4).map((c, idx) => (
+                            <div key={c.key} className="flex items-center gap-3">
+                                <span className="flex-1 text-sm font-bold text-slate-600 dark:text-slate-300 truncate">{c.title}</span>
+                                <div className="w-32 md:w-44 h-2.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden shrink-0">
+                                    <div
+                                        className={`h-full rounded-full transition-all duration-1000 ease-out ${idx === 0 ? 'bg-gradient-to-r from-indigo-500 to-violet-500' : 'bg-slate-300 dark:bg-slate-500'}`}
+                                        style={{ width: `${animateStats ? c.fitScore : 0}%` }}
+                                    ></div>
+                                </div>
+                                <span className="w-9 text-left text-xs font-black text-slate-500 dark:text-slate-400 tabular-nums shrink-0">{toPersianNum(c.fitScore as number)}٪</span>
+                            </div>
+                        ))}
+                        <p className="text-[10px] text-slate-400 dark:text-slate-500 leading-relaxed mt-1">
+                            پیشنهاد اکتشافی بر پایه تطبیق پروفایل — جایگزین آزمون رغبت شغلی یا مصاحبه نیست.
+                        </p>
+                    </div>
+                </div>
+            )}
         </div>
 
       </div>
