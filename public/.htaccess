@@ -1,0 +1,31 @@
+# iCompetency SPA routing (Vite build output).
+# The frontend uses client-side routing (react-router): URLs like /dashboard,
+# /journey, /games/memory are NOT real files — on a hard refresh or direct
+# visit the web server must return index.html so the app can render the route.
+# Without this, /dashboard falls through to the PHP backend and you get the
+# CONFIG_MISSING / "route not found" JSON instead of the app.
+#
+# Deploy layout (document root, e.g. public_html/):
+#   index.html, assets/, fonts/, .htaccess   <- this frontend build
+#   backend/                                  <- the PHP API (its own .htaccess)
+# The frontend calls the API at /backend by default (VITE_API_BASE_URL).
+
+DirectoryIndex index.html
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  # If the app is served from a subfolder instead of the domain root, set this
+  # to that path (e.g. RewriteBase /app/) and rebuild with a matching base.
+  RewriteBase /
+
+  # Never touch the API: let /backend reach the PHP app and its own .htaccess.
+  RewriteRule ^backend(/|$) - [L]
+
+  # Serve real files and directories (JS, CSS, fonts, images) as-is.
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  # Everything else is a client-side route -> hand it to the SPA entry point.
+  RewriteRule ^ index.html [L]
+</IfModule>

@@ -2,17 +2,62 @@
 
 این پوشه یک API خام PHP + MySQL برای iCompetency است. Composer و وابستگی خارجی لازم ندارد؛ فقط افزونه‌های رایج PHP مثل PDO MySQL، cURL و JSON لازم است.
 
-## نصب سریع
+## ساختار درست استقرار (فرانت‌اند + بک‌اند)
+
+آیکامپتنسی دو بخش است: یک اپ تک‌صفحه‌ای React (فرانت) و این API از جنس PHP (بک). **هر دو باید کنار هم آپلود شوند** با این چیدمان دقیق در document root (معمولاً `public_html/`):
+
+```text
+public_html/
+├── index.html          ← خروجی build فرانت (از پوشه dist)
+├── assets/             ← فایل‌های JS/CSS ساخته‌شده
+├── fonts/
+├── .htaccess           ← مسیریابی SPA (از dist می‌آید) — بدون این، /dashboard کار نمی‌کند
+└── backend/            ← محتوای همین پوشه backend
+    ├── index.php
+    ├── .htaccess
+    └── config.php      ← باید بسازید (از config.sample.php)
+```
+
+مراحل:
+
+1. **فرانت را build کنید**: در ریشه پروژه `npm install && npm run build`. سپس **کل محتوای پوشه `dist/`** (شامل فایل مخفی `.htaccess`) را در ریشه `public_html/` آپلود کنید. دقت کنید فایل `.htaccess` هم منتقل شود — بعضی FTPها فایل‌های مخفی را نشان نمی‌دهند؛ گزینه «نمایش فایل‌های مخفی» را روشن کنید.
+2. **بک‌اند را آپلود کنید**: کل پوشه `backend` را داخل `public_html/backend/` بگذارید. مسیر پیش‌فرضی که فرانت صدا می‌زند `/backend` است، پس نام پوشه دقیقاً `backend` باشد (اگر جای دیگری گذاشتید، باید موقع build متغیر `VITE_API_BASE_URL` را تنظیم کنید).
+3. **دیتابیس**: در phpMyAdmin فایل `backend/schema.sql` را import کنید (idempotent است؛ ایمپورت مجدد بی‌خطر است).
+4. **config.php**: `backend/config.sample.php` را به `backend/config.php` کپی کنید و مشخصات DB، دامنه CORS و کلید AvalAI را پر کنید.
+
+### چرا `/dashboard` خطای CONFIG_MISSING می‌دهد؟
+
+اگر با باز کردن `icompetency.ir/dashboard` این JSON را دیدید:
+
+```json
+{"ok":false,"error":{"code":"CONFIG_MISSING", ...}}
+```
+
+یعنی درخواستِ یک **مسیر فرانت** به **بک‌اند PHP** رسیده است. علت‌های محتمل و راه‌حل:
+
+- **`.htaccess` فرانت در ریشه نیست** (شایع‌ترین علت): مطمئن شوید فایل `.htaccess` از پوشه `dist` در ریشه `public_html/` وجود دارد. این فایل مسیرهای کلاینت مثل `/dashboard` را به `index.html` می‌دهد و فقط `/backend` را به PHP می‌فرستد. اگر فایل build شما این را ندارد، دوباره `npm run build` بزنید (نسخه به‌روز آن را می‌سازد).
+- **بک‌اند در ریشه آپلود شده، نه در زیرپوشه `backend/`**: اگر محتوای پوشه backend را مستقیم در `public_html/` ریختید، `.htaccess` بک‌اند همه‌چیز را به `index.php` می‌فرستد و `/dashboard` هم به API می‌رسد. بک‌اند را به `public_html/backend/` منتقل کنید و فرانت را در ریشه بگذارید.
+- **`config.php` ساخته نشده**: پس از درست شدن مسیریابی، اگر هنوز روی `/backend/health` خطای CONFIG_MISSING دیدید، یعنی `config.php` را نساخته‌اید (مرحله ۴ بالا).
+
+پس از استقرار درست، این‌ها را تست کنید:
+
+```text
+https://icompetency.ir/backend/health        ← باید {"ok":true,...} بدهد
+https://icompetency.ir/backend/health?db=1    ← باید اتصال DB را تأیید کند
+https://icompetency.ir/dashboard              ← باید خودِ اپ باز شود (نه JSON)
+```
+
+## نصب سریع (فقط بک‌اند، مسیر قدیمی)
 
 1. در cPanel یک دیتابیس و کاربر MySQL بسازید و دسترسی کامل بدهید.
 2. در phpMyAdmin فایل `schema.sql` را روی همان دیتابیس Import کنید.
-3. محتوای پوشه `backend` را مثلاً در `public_html/api/` آپلود کنید.
+3. محتوای پوشه `backend` را در `public_html/backend/` آپلود کنید (نام پوشه دقیقاً `backend`، تا با مسیر پیش‌فرض فرانت یکی باشد).
 4. `config.sample.php` را به `config.php` کپی کنید و مشخصات DB، دامنه CORS و کلید AvalAI را تنظیم کنید.
 5. تست کنید:
 
 ```text
-https://example.com/api/health
-https://example.com/api/health?db=1
+https://example.com/backend/health
+https://example.com/backend/health?db=1
 ```
 
 اگر `CONFIG_MISSING` دیدید، فایل `config.php` ساخته نشده یا در مسیر درست نیست.
