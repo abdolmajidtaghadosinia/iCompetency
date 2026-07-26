@@ -379,6 +379,32 @@ const JourneyMap: React.FC<Props> = ({ unlockedNodes, completedNodes, onSelectNo
                           fill="url(#peakNear)" className="text-violet-400 dark:text-violet-500" />
                 </svg>
 
+                {/* Drifting mist — two layers at different speeds for parallax depth */}
+                <div className="absolute inset-0 pointer-events-none overflow-hidden">
+                    {[
+                        { top: '30%', w: 220, h: 26, dur: 46, delay: 0, op: 'opacity-40 dark:opacity-20' },
+                        { top: '52%', w: 300, h: 32, dur: 64, delay: -18, op: 'opacity-30 dark:opacity-15' },
+                        { top: '68%', w: 180, h: 22, dur: 38, delay: -28, op: 'opacity-35 dark:opacity-15' },
+                    ].map((c, i) => (
+                        <div key={i}
+                             className={`journey-drift absolute rounded-full bg-white blur-xl ${c.op}`}
+                             style={{ top: c.top, width: c.w, height: c.h, animationDuration: `${c.dur}s`, animationDelay: `${c.delay}s` }} />
+                    ))}
+                </div>
+
+                {/* Embers rising from the summit */}
+                <div className="absolute pointer-events-none" style={{ left: '8%', top: '20%', width: 90, height: 90, transform: 'translate(-50%, -50%)' }}>
+                    {[0, 1, 2, 3, 4].map(i => (
+                        <span key={i}
+                              className="journey-float absolute w-1 h-1 rounded-full bg-amber-400 dark:bg-amber-300"
+                              style={{
+                                  left: `${18 + i * 16}%`, bottom: '18%',
+                                  animationDuration: `${3.4 + i * 0.55}s`,
+                                  animationDelay: `${i * 0.7}s`,
+                              }} />
+                    ))}
+                </div>
+
                 {/* The trail */}
                 <svg className="absolute inset-0 w-full h-full overflow-visible pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
                     <defs>
@@ -393,18 +419,29 @@ const JourneyMap: React.FC<Props> = ({ unlockedNodes, completedNodes, onSelectNo
                         </filter>
                     </defs>
 
-                    {/* Untraveled route: dashed guide */}
+                    {/* Untraveled route: dashed guide, drawn first */}
                     <path d={fullPath} fill="none" strokeWidth="0.7" strokeDasharray="2 2.6" strokeLinecap="round"
                           className="stroke-slate-400/50 dark:stroke-slate-500/40" />
 
-                    {/* Traveled route: glowing ribbon */}
-                    <path d={traveledPath} fill="none" stroke="url(#trailGrad)" strokeWidth="3.2"
-                          strokeLinecap="round" strokeLinejoin="round" filter="url(#trailGlow)" />
+                    {/* Traveled route: a glowing ribbon that draws itself on mount.
+                        pathLength="1" lets the CSS keyframes work in 0..1 units. */}
+                    <path key={`trail-${traveledPath}`} d={traveledPath} pathLength={1} fill="none"
+                          stroke="url(#trailGrad)" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round"
+                          filter="url(#trailGlow)" className="journey-draw" />
 
-                    {/* Energy pulse climbing the traveled route */}
-                    <circle r="1.1" fill="#fff" className="drop-shadow">
-                        <animateMotion dur="4.5s" repeatCount="indefinite" path={traveledPath} rotate="auto" />
-                        <animate attributeName="opacity" values="0;1;1;0" dur="4.5s" repeatCount="indefinite" />
+                    {/* Energy climbing the finished route: a bright head plus two
+                        trailing sparks on the same path, offset in time. */}
+                    <circle r="1.15" fill="#ffffff">
+                        <animateMotion dur="5s" repeatCount="indefinite" path={traveledPath} rotate="auto" />
+                        <animate attributeName="opacity" values="0;1;1;0" dur="5s" repeatCount="indefinite" />
+                    </circle>
+                    <circle r="0.7" fill="#c4b5fd">
+                        <animateMotion dur="5s" begin="-0.35s" repeatCount="indefinite" path={traveledPath} rotate="auto" />
+                        <animate attributeName="opacity" values="0;0.85;0.85;0" dur="5s" begin="-0.35s" repeatCount="indefinite" />
+                    </circle>
+                    <circle r="0.45" fill="#fcd34d">
+                        <animateMotion dur="5s" begin="-0.7s" repeatCount="indefinite" path={traveledPath} rotate="auto" />
+                        <animate attributeName="opacity" values="0;0.7;0.7;0" dur="5s" begin="-0.7s" repeatCount="indefinite" />
                     </circle>
                 </svg>
 
@@ -444,14 +481,18 @@ const JourneyMap: React.FC<Props> = ({ unlockedNodes, completedNodes, onSelectNo
 
                     return (
                         <div key={node.id}
-                             className="absolute z-20 flex flex-col items-center"
-                             style={{ left: `${node.x}%`, top: `${node.y}%`, transform: 'translate(-50%, -50%)' }}
+                             className="journey-station absolute z-20 flex flex-col items-center"
+                             style={{
+                                 left: `${node.x}%`, top: `${node.y}%`, transform: 'translate(-50%, -50%)',
+                                 // Stations arrive in climb order, riding just behind the trail draw.
+                                 animationDelay: `${180 + index * 110}ms`,
+                             }}
                              onMouseEnter={() => setHoveredNode(node.id)}
                              onMouseLeave={() => setHoveredNode(null)}>
 
                             {/* "You are here" */}
                             {isCurrent && !focusedNode && (
-                                <div className="absolute -top-12 whitespace-nowrap animate-bounce pointer-events-none z-30">
+                                <div className="absolute -top-12 whitespace-nowrap journey-hover pointer-events-none z-30">
                                     <div className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-[10px] font-black px-3 py-1.5 rounded-xl shadow-lg shadow-indigo-500/40 relative">
                                         شما اینجایید
                                         <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-purple-600 rotate-45" />
@@ -467,13 +508,16 @@ const JourneyMap: React.FC<Props> = ({ unlockedNodes, completedNodes, onSelectNo
                                     ${isUnlocked ? 'hover:scale-110 cursor-pointer' : 'cursor-not-allowed'}
                                     ${isCurrent ? 'scale-105' : ''}`}
                             >
-                                {/* Pulsing halo for the current node */}
+                                {/* Two offset ripples radiate from the current station */}
                                 {isCurrent && (
-                                    <span className="absolute inset-0 rounded-full bg-indigo-500/30 animate-ping" />
+                                    <>
+                                        <span className="journey-ripple absolute inset-0 rounded-full border-2 border-indigo-500/60" />
+                                        <span className="journey-ripple absolute inset-0 rounded-full border-2 border-purple-500/50" style={{ animationDelay: '1.3s' }} />
+                                    </>
                                 )}
-                                {/* Boss aura */}
+                                {/* Boss aura breathes instead of blinking */}
                                 {isBoss && isUnlocked && (
-                                    <span className="absolute -inset-2 rounded-full bg-gradient-to-br from-amber-400/30 to-rose-500/30 blur-md animate-pulse" />
+                                    <span className="journey-breathe absolute -inset-3 rounded-full bg-gradient-to-br from-amber-400/40 to-rose-500/40 blur-lg" />
                                 )}
 
                                 <span className={`absolute inset-0 rounded-full border-[3px] shadow-lg transition-colors duration-300 ${
@@ -482,6 +526,14 @@ const JourneyMap: React.FC<Props> = ({ unlockedNodes, completedNodes, onSelectNo
                                     : isUnlocked ? 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-600'
                                     : 'bg-slate-100 dark:bg-slate-800/70 border-slate-200/70 dark:border-slate-700'
                                 }`} />
+
+                                {/* Light sweeping across a conquered station */}
+                                {isCompleted && (
+                                    <span className="absolute inset-0 rounded-full overflow-hidden pointer-events-none">
+                                        <span className="journey-shine absolute inset-y-0 w-1/2 bg-gradient-to-r from-transparent via-white/60 to-transparent"
+                                              style={{ animationDelay: `${index * 0.45}s` }} />
+                                    </span>
+                                )}
 
                                 <span className={`relative z-10 ${
                                     isCompleted || isCurrent ? 'text-white' : isUnlocked ? accent.text : 'text-slate-300 dark:text-slate-600'

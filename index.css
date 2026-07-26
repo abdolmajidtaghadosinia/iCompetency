@@ -97,6 +97,81 @@ body {
 .animate-fade-in-up { animation: fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
 .animate-scale-in { animation: scaleIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
 
+/* Sheen sweep used by progress bars (was referenced before it existed). */
+@keyframes shimmer {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(200%); }
+}
+
+/* ===== Journey map motion system =====
+   The map tells a story of climbing, so its motion is built from four
+   ideas: the trail DRAWS itself, stations ARRIVE in climb order, energy
+   TRAVELS along the finished route, and the summit BREATHES. Trail paths
+   carry pathLength="1", so the draw keyframes work in 0..1 units no
+   matter how long the real path is. */
+@keyframes journeyDraw {
+  from { stroke-dashoffset: 1; }
+  to   { stroke-dashoffset: 0; }
+}
+/* Stations arrive with a small overshoot, staggered along the climb. */
+@keyframes journeyStation {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.4); }
+  70%  { opacity: 1; transform: translate(-50%, -50%) scale(1.08); }
+  100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+/* Mist drifting across the ridges (two speeds for parallax). */
+@keyframes journeyDrift {
+  from { transform: translateX(-8%); }
+  to   { transform: translateX(108%); }
+}
+/* Slow vertical breathing for the summit halo. */
+@keyframes journeyBreathe {
+  0%, 100% { transform: scale(1); opacity: 0.55; }
+  50%      { transform: scale(1.18); opacity: 0.9; }
+}
+/* Expanding rings from the current station. */
+@keyframes journeyRipple {
+  0%   { transform: scale(0.8); opacity: 0.7; }
+  100% { transform: scale(2.3); opacity: 0; }
+}
+/* A light sweep across a conquered station. */
+@keyframes journeyShine {
+  0%       { transform: translateX(-140%) rotate(20deg); }
+  55%,100% { transform: translateX(160%) rotate(20deg); }
+}
+/* Snow/embers rising near the peak. */
+@keyframes journeyFloat {
+  0%   { transform: translateY(0) scale(1); opacity: 0; }
+  15%  { opacity: 0.9; }
+  100% { transform: translateY(-46px) scale(0.5); opacity: 0; }
+}
+/* Gentler than bounce for the "you are here" flag. */
+@keyframes journeyHover {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-6px); }
+}
+
+.journey-draw     { stroke-dasharray: 1; animation: journeyDraw 1.8s cubic-bezier(0.65, 0, 0.35, 1) forwards; }
+.journey-station  { animation: journeyStation 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) backwards; }
+.journey-drift    { animation: journeyDrift linear infinite; }
+.journey-breathe  { animation: journeyBreathe 4s ease-in-out infinite; }
+.journey-ripple   { animation: journeyRipple 2.6s ease-out infinite; }
+.journey-shine    { animation: journeyShine 4.5s ease-in-out infinite; }
+.journey-float    { animation: journeyFloat linear infinite; }
+.journey-hover    { animation: journeyHover 2.4s ease-in-out infinite; }
+
+/* Respect users who ask for less motion: keep the meaning, drop the loops. */
+@media (prefers-reduced-motion: reduce) {
+  .journey-draw    { animation: none; stroke-dasharray: none; }
+  .journey-station { animation: none; }
+  .journey-drift,
+  .journey-breathe,
+  .journey-ripple,
+  .journey-shine,
+  .journey-float,
+  .journey-hover   { animation: none; }
+}
+
 /* Print Styles */
 @media print {
   @page { size: A4; margin: 0; }
