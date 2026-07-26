@@ -206,7 +206,8 @@ function ai_spec_sjt(): array
     $prompt = 'Generate a Persian (Farsi) interpersonal Situational Judgment Test for the workplace. Return JSON only. ALL human-readable text in fluent, natural Persian.'
         ."\n- scenarios: EXACTLY 6 scenarios, exactly 2 per dimension. dimension MUST be exactly one of: conflictManagement, teamCommunication, empathySupport."
         ."\n- each scenario: context of 2-4 Persian sentences describing a realistic, specific office situation between colleagues (use first person: شما...), with concrete detail — no abstract puzzles."
-        ."\n- each scenario has EXACTLY 4 options (concrete actions in first person), each with a UNIQUE effectiveness integer 0,1,2,3 (3 = most effective professional action, 0 = most harmful) and feedback (1-2 Persian sentences explaining the interpersonal consequence of that action)."
+        ."\n- each scenario has EXACTLY 4 options (concrete actions in first person) and feedback for each (1-2 Persian sentences explaining the interpersonal consequence of that action)."
+        ."\n- EFFECTIVENESS IS A STRICT RANKING, NOT A RATING: within EACH scenario the four options must use the values 3, 2, 1 and 0 exactly once each — 3 = most effective professional action, 0 = most harmful. Never repeat a value inside the same scenario and never leave one out; before returning, re-check every scenario contains the multiset {0,1,2,3}."
         ."\n- Options must ALL sound plausible to a careless reader; effectiveness differences should come from interpersonal consequences (trust, face-saving, escalation, clarity), not from one option being obviously silly."
         ."\n- Avoid options that merely defer (\"ask the manager\") as the best answer more than once.";
     return ['prompt'=>$prompt, 'schema'=>schema_object(['scenarios'=>schema_array($sc)], ['scenarios']), 'fallback'=>sjt_fallback()];

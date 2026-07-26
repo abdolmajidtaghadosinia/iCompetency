@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { SjtData, SjtDimension } from '../types';
 import { generateSjtData } from '../services/geminiService';
 import { Loader2, Users, CheckCircle2, XCircle, ChevronLeft, AlertTriangle, ThumbsUp, ThumbsDown, MessageSquare } from 'lucide-react';
@@ -23,35 +23,53 @@ const canonicalDimension = (raw: string): SjtDimension =>
     ? (raw.trim() as SjtDimension)
     : 'teamCommunication';
 
-// Reject malformed AI data so a bad generation never becomes a scored (and
-// unfair) assessment. Each scenario needs 3+ options with a unique best
-// (highest effectiveness) and unique worst (lowest) so both picks are gradable.
-const isValidSjt = (d: SjtData | null): boolean =>
-  !!d && Array.isArray(d.scenarios) && d.scenarios.length >= 3 &&
-  d.scenarios.every(s => {
-    if (!s || typeof s.context !== 'string' || s.context.trim().length === 0) return false;
-    if (!Array.isArray(s.options) || s.options.length < 3) return false;
-    if (!s.options.every(o => o && typeof o.text === 'string' && o.text.trim().length > 0 && typeof o.effectiveness === 'number')) return false;
-    const effs = s.options.map(o => o.effectiveness);
-    const max = Math.max(...effs), min = Math.min(...effs);
-    return max !== min
-      && effs.filter(e => e === max).length === 1
-      && effs.filter(e => e === min).length === 1;
-  });
+// The UI is Persian-only; an English generation must not be shown as a real
+// assessment (same guard as CynefinGame).
+const hasPersian = (s: string) => /[؀-ۿ]/.test(s || '');
+
+// A scenario is gradable when it has enough Persian options and a genuine
+// ordering signal (at least two distinct effectiveness values). Ties are fine:
+// the tier-based scoring below credits every option sharing the top/bottom
+// value. Only a completely flat scenario carries no signal at all.
+const isUsableScenario = (s: SjtData['scenarios'][number]): boolean => {
+  if (!s || typeof s.context !== 'string' || !hasPersian(s.context)) return false;
+  if (!Array.isArray(s.options) || s.options.length < 3) return false;
+  if (!s.options.every(o => o && typeof o.text === 'string' && hasPersian(o.text)
+      && typeof o.effectiveness === 'number' && Number.isFinite(o.effectiveness))) return false;
+  return new Set(s.options.map(o => o.effectiveness)).size >= 2;
+};
+
+// Repair rather than reject: drop only the scenarios that are unusable and
+// keep the rest. Previously a single tied pair anywhere in the set (e.g. the
+// model scoring two options 2 and 2) failed an all-or-nothing check and threw
+// away an otherwise good six-scenario generation, so the whole run was marked
+// unrecordable.
+const normalizeSjt = (d: SjtData | null): SjtData | null => {
+  if (!d || !Array.isArray(d.scenarios)) return null;
+  const scenarios = d.scenarios.filter(isUsableScenario);
+  return scenarios.length >= 3 ? { ...d, scenarios } : null;
+};
 
 interface Attempt { dimension: SjtDimension; bestPts: number; worstPts: number; }
 
-// Classic SJT pick-best/pick-worst partial-credit scoring on the option's
-// effectiveness rank: full credit for the true best/worst, half credit for
-// the adjacent rank, nothing otherwise.
-const bestPoints = (picked: number, ranked: number[]): number =>
-  picked === ranked[0] ? 1 : picked === ranked[1] ? 0.5 : 0;
-const worstPoints = (picked: number, ranked: number[]): number =>
-  picked === ranked[ranked.length - 1] ? 1 : picked === ranked[ranked.length - 2] ? 0.5 : 0;
+// Classic SJT pick-best/pick-worst partial credit, computed over the DISTINCT
+// effectiveness tiers so tied options are graded consistently: everything on
+// the top tier earns full credit for "most effective", the next tier down
+// earns half, and likewise from the bottom for "least effective".
+const tiers = (effs: number[], desc: boolean): number[] =>
+  [...new Set(effs)].sort((a, b) => (desc ? b - a : a - b));
+const bestPoints = (picked: number, effs: number[]): number => {
+  const t = tiers(effs, true);
+  return picked === t[0] ? 1 : picked === t[1] ? 0.5 : 0;
+};
+const worstPoints = (picked: number, effs: number[]): number => {
+  const t = tiers(effs, false);
+  return picked === t[0] ? 1 : picked === t[1] ? 0.5 : 0;
+};
 
 const SjtGame: React.FC<Props> = ({ onExit, onComplete }) => {
   const [gameState, setGameState] = useState<'intro' | 'playing' | 'paused' | 'finished'>('intro');
-  const [data, setData] = useState<SjtData | null>(null);
+  const [raw, setRaw] = useState<SjtData | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [index, setIndex] = useState(0);
   // Two picks per scenario, in order: most effective first, then least.
@@ -61,15 +79,20 @@ const SjtGame: React.FC<Props> = ({ onExit, onComplete }) => {
 
   const loadData = () => {
     setLoadError(false);
-    setData(null);
-    generateSjtData().then(d => setData(d)).catch(() => setLoadError(true));
+    setRaw(null);
+    generateSjtData().then(d => setRaw(d)).catch(() => setLoadError(true));
   };
   useEffect(loadData, []);
   useEffect(() => {
-    if (data || loadError) return;
+    if (raw || loadError) return;
     const t = setTimeout(() => setLoadError(true), 15000);
     return () => clearTimeout(t);
-  }, [data, loadError]);
+  }, [raw, loadError]);
+
+  // Play the usable subset when there is one; otherwise still render whatever
+  // came back (so the player sees content) but never record the run.
+  const usable = useMemo(() => normalizeSjt(raw), [raw]);
+  const data = usable ?? raw;
 
   const scenario = data?.scenarios[index];
   const answered = worstPick !== null;
@@ -83,9 +106,9 @@ const SjtGame: React.FC<Props> = ({ onExit, onComplete }) => {
   const pickWorst = (idx: number) => {
     if (!scenario || bestPick === null || worstPick !== null || idx === bestPick) return;
     setWorstPick(idx);
-    const ranked = [...scenario.options.map(o => o.effectiveness)].sort((a, b) => b - a);
-    const bPts = bestPoints(scenario.options[bestPick].effectiveness, ranked);
-    const wPts = worstPoints(scenario.options[idx].effectiveness, ranked);
+    const effs = scenario.options.map(o => o.effectiveness);
+    const bPts = bestPoints(scenario.options[bestPick].effectiveness, effs);
+    const wPts = worstPoints(scenario.options[idx].effectiveness, effs);
     attempts.current.push({ dimension: canonicalDimension(scenario.dimension), bestPts: bPts, worstPts: wPts });
     if (bPts + wPts >= 1.5) sfx.playSuccess(); else sfx.playError();
   };
@@ -101,7 +124,7 @@ const SjtGame: React.FC<Props> = ({ onExit, onComplete }) => {
     }
   };
 
-  const isFallback = data?._fallback === true || (!!data && !isValidSjt(data));
+  const isFallback = raw?._fallback === true || (!!raw && usable === null);
 
   if (gameState === 'finished' && data) {
     // Per-dimension percentages from the pick-best/pick-worst points.
@@ -291,9 +314,9 @@ const SjtGame: React.FC<Props> = ({ onExit, onComplete }) => {
 
               {/* Verdict after both picks */}
               {answered && bestPick !== null && (() => {
-                const ranked = [...scenario.options.map(o => o.effectiveness)].sort((a, b) => b - a);
-                const bPts = bestPoints(scenario.options[bestPick].effectiveness, ranked);
-                const wPts = worstPoints(scenario.options[worstPick as number].effectiveness, ranked);
+                const effs = scenario.options.map(o => o.effectiveness);
+                const bPts = bestPoints(scenario.options[bestPick].effectiveness, effs);
+                const wPts = worstPoints(scenario.options[worstPick as number].effectiveness, effs);
                 const pct = Math.round(((bPts + wPts) / 2) * 100);
                 return (
                   <div className={`mt-6 rounded-2xl p-4 flex items-center gap-3 animate-fade-in-up border ${
