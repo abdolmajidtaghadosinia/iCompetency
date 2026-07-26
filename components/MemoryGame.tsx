@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  Server, Database, Radar, Play, CheckCircle2, XCircle,
+  Server, Database, Radar, Play, CheckCircle2, XCircle, Users, Cpu,
   HelpCircle, Eye, RefreshCw, Zap, Heart, MousePointer2
 } from 'lucide-react';
 import { toPersianNum } from '../utils';
@@ -244,88 +244,94 @@ const CorsiGame: React.FC<{ onFinish: (span: number, rawScore: number) => void }
 };
 
 // --- SUB-GAME 2: PAIRED ASSOCIATION ---
+// Level sizes are capped by PAIRED_COLORS.length: with more pairs than colors,
+// two icons would share a color and the recall task becomes ambiguous.
+const PAIRED_LEVELS = [4, 6, 8];
+const PAIRED_COLORS = ['bg-red-500', 'bg-blue-500', 'bg-green-500', 'bg-yellow-500', 'bg-purple-500', 'bg-orange-500', 'bg-pink-500', 'bg-cyan-500'];
+const PAIRED_ICONS = ['🏠', '🚗', '💻', '⌚', '📷', '🚲', '🚀', '☂️', '🍔', '🎸', '⚽', '🔑'];
+const pairedStudySeconds = (lvlIndex: number) => 3 + PAIRED_LEVELS[lvlIndex] * 2;
+const makePairs = (lvlIndex: number) => {
+    const count = PAIRED_LEVELS[lvlIndex];
+    const icons = [...PAIRED_ICONS].sort(() => Math.random() - 0.5).slice(0, count);
+    const colors = [...PAIRED_COLORS].sort(() => Math.random() - 0.5).slice(0, count);
+    return icons.map((icon, i) => ({ icon, color: colors[i] }));
+};
+
 const PairedGame: React.FC<{ onFinish: (accuracy: number, rawScore: number) => void }> = ({ onFinish }) => {
     const [phase, setPhase] = useState<'study' | 'delay' | 'test' | 'finished'>('study');
-    const [level, setLevel] = useState(0); 
-    const [timeLeft, setTimeLeft] = useState(0);
-    const [pairs, setPairs] = useState<{icon: string, color: string}[]>([]);
+    const [level, setLevel] = useState(0);
+    // Pairs and the study clock are seeded lazily so the very first render is
+    // already a valid study phase. (Previously both were initialized in a mount
+    // effect while a second effect keyed on [timeLeft, phase] also ran on mount
+    // with the initial timeLeft=0 — it matched the "study finished" branch and
+    // skipped straight past the study screen, so the player was asked to recall
+    // pairs they had never been shown.)
+    const [pairs, setPairs] = useState(() => makePairs(0));
+    const [timeLeft, setTimeLeft] = useState(() => pairedStudySeconds(0));
+    const [studyTotal, setStudyTotal] = useState(() => pairedStudySeconds(0));
     const [testIndex, setTestIndex] = useState(0);
     const [correctCount, setCorrectCount] = useState(0);
     const [totalTests, setTotalTests] = useState(0);
-
-    // Max level is capped by COLORS.length: with more pairs than colors, two
-    // icons would share a color and the recall task becomes inconsistent.
-    const LEVELS = [4, 6, 8];
-    const COLORS = ['bg-red-500', 'bg-blue-500', 'bg-green-500', 'bg-yellow-500', 'bg-purple-500', 'bg-orange-500', 'bg-pink-500', 'bg-cyan-500'];
-    const ICONS = ['🏠', '🚗', '💻', '⌚', '📷', '🚲', '🚀', '☂️', '🍔', '🎸', '⚽', '🔑'];
+    const [lastPick, setLastPick] = useState<{ color: string; correct: boolean } | null>(null);
 
     const startLevel = (lvlIndex: number) => {
-        const count = LEVELS[lvlIndex];
-        const selectedIcons = ICONS.slice(0, count).sort(() => Math.random() - 0.5);
-        const selectedColors = COLORS.slice(0, count).sort(() => Math.random() - 0.5);
-        
-        const newPairs = selectedIcons.map((icon, i) => ({
-            icon, color: selectedColors[i % selectedColors.length]
-        }));
-        
-        setPairs(newPairs);
+        setPairs(makePairs(lvlIndex));
+        setTestIndex(0);
+        setLastPick(null);
         setPhase('study');
-        setTimeLeft(3 + (count * 2)); 
+        setStudyTotal(pairedStudySeconds(lvlIndex));
+        setTimeLeft(pairedStudySeconds(lvlIndex));
     };
 
-    useEffect(() => { startLevel(0); }, []);
-
+    // One timer per phase; transitions only fire for the timed phases so a
+    // freshly seeded study phase can never be mistaken for a finished one.
     useEffect(() => {
+        if (phase !== 'study' && phase !== 'delay') return;
         if (timeLeft > 0) {
             const t = setTimeout(() => setTimeLeft(l => l - 1), 1000);
             return () => clearTimeout(t);
-        } else if (timeLeft === 0 && phase === 'study') {
-            setPhase('delay');
-            setTimeLeft(3); 
-        } else if (timeLeft === 0 && phase === 'delay') {
-            setPhase('test');
-            setTestIndex(0);
         }
+        if (phase === 'study') { setPhase('delay'); setTimeLeft(3); }
+        else { setPhase('test'); setTestIndex(0); }
     }, [timeLeft, phase]);
 
     const handleAnswer = (color: string) => {
+        if (lastPick) return;
         const currentPair = pairs[testIndex];
         const isCorrect = currentPair.color === color;
-        
-        if (isCorrect) {
-            setCorrectCount(s => s + 1);
-            sfx.playSuccess();
-        } else {
-            sfx.playError();
-        }
+        setLastPick({ color, correct: isCorrect });
+
+        if (isCorrect) { setCorrectCount(s => s + 1); sfx.playSuccess(); }
+        else { sfx.playError(); }
         setTotalTests(t => t + 1);
 
-        if (testIndex < pairs.length - 1) {
-            setTestIndex(i => i + 1);
-        } else {
-            // Level done
-            if (level < LEVELS.length - 1) {
-                setLevel(l => l + 1);
-                startLevel(level + 1);
+        // Brief feedback so the player learns which colour was right.
+        setTimeout(() => {
+            setLastPick(null);
+            if (testIndex < pairs.length - 1) {
+                setTestIndex(i => i + 1);
+            } else if (level < PAIRED_LEVELS.length - 1) {
+                const next = level + 1;
+                setLevel(next);
+                startLevel(next);
             } else {
                 setPhase('finished');
             }
-        }
+        }, 700);
     };
 
     if (phase === 'finished') {
-        const accuracy = Math.round((correctCount / totalTests) * 100);
-        // Formula: Level * 15 + Accuracy * 0.5
-        const finalScore = (LEVELS.length * 15) + (accuracy * 0.5);
+        const accuracy = totalTests > 0 ? Math.round((correctCount / totalTests) * 100) : 0;
+        const finalScore = (PAIRED_LEVELS.length * 15) + (accuracy * 0.5);
 
         return (
-            <GameResultCard 
+            <GameResultCard
                 title="جفت‌های پنهان"
                 rawScore={accuracy} // T-Score based on Accuracy
                 scoreKey="A9b"
                 metrics={[
                     { label: 'دقت', value: toPersianNum(accuracy) + '%' },
-                    { label: 'پاسخ صحیح', value: toPersianNum(correctCount) },
+                    { label: 'پاسخ صحیح', value: toPersianNum(correctCount) + ' از ' + toPersianNum(totalTests) },
                 ]}
                 onRetry={() => { setLevel(0); setCorrectCount(0); setTotalTests(0); startLevel(0); }}
                 onComplete={() => onFinish(accuracy, finalScore)}
@@ -333,17 +339,38 @@ const PairedGame: React.FC<{ onFinish: (accuracy: number, rawScore: number) => v
         );
     }
 
+    const shell = 'flex flex-col items-center justify-center h-full w-full bg-gradient-to-b from-slate-900 to-slate-950 text-slate-100 px-4 py-6';
+
     if (phase === 'study') {
+        const pct = studyTotal > 0 ? (timeLeft / studyTotal) * 100 : 0;
         return (
-            <div className="flex flex-col items-center h-full pt-8">
-                <div className="mb-6 font-bold text-slate-500">زمان یادگیری: {timeLeft}s</div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            <div className={shell}>
+                <div className="flex items-center gap-2 mb-2 px-4 py-2 rounded-full bg-sky-500/10 border border-sky-500/40 text-sky-300 font-black text-sm">
+                    <Eye size={16} className="animate-pulse" /> این جفت‌ها را به خاطر بسپارید
+                </div>
+                <p className="text-slate-400 text-xs font-bold mb-5">
+                    مرحله {toPersianNum(level + 1)} از {toPersianNum(PAIRED_LEVELS.length)} — {toPersianNum(pairs.length)} جفت
+                </p>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                     {pairs.map((p, i) => (
-                        <div key={i} className="bg-white p-4 rounded-2xl shadow-md flex flex-col items-center gap-2 border border-slate-100 animate-scale-in">
+                        <div key={i} className="bg-slate-800/80 border border-slate-700 p-4 rounded-2xl shadow-lg flex flex-col items-center gap-2.5 animate-scale-in"
+                             style={{ animationDelay: `${i * 60}ms` }}>
                             <span className="text-4xl">{p.icon}</span>
-                            <div className={`w-8 h-8 rounded-full ${p.color}`}></div>
+                            <div className={`w-9 h-9 rounded-full ${p.color} ring-2 ring-white/20`}></div>
                         </div>
                     ))}
+                </div>
+
+                <div className="w-full max-w-sm">
+                    <div className="flex justify-between text-[11px] font-bold text-slate-400 mb-1.5">
+                        <span>زمان یادگیری</span>
+                        <span className="tabular-nums">{toPersianNum(timeLeft)} ثانیه</span>
+                    </div>
+                    <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+                        <div className="h-full bg-gradient-to-r from-sky-400 to-indigo-500 rounded-full transition-all duration-1000 ease-linear"
+                             style={{ width: `${pct}%` }} />
+                    </div>
                 </div>
             </div>
         );
@@ -351,25 +378,44 @@ const PairedGame: React.FC<{ onFinish: (accuracy: number, rawScore: number) => v
 
     if (phase === 'delay') {
         return (
-            <div className="flex items-center justify-center h-full text-slate-400 font-bold bg-slate-50">
-                صبر کنید...
+            <div className={shell}>
+                <div className="w-16 h-16 rounded-full border-4 border-slate-700 border-t-indigo-500 animate-spin mb-5" />
+                <p className="font-black text-slate-300 mb-1">آماده شوید…</p>
+                <p className="text-xs text-slate-500 font-bold">الان رنگ هر آیتم را می‌پرسیم</p>
             </div>
         );
     }
 
     return (
-        <div className="flex flex-col items-center h-full pt-12">
-            <h3 className="mb-8 font-bold text-slate-700">این آیتم چه رنگی بود؟</h3>
-            <div className="text-8xl mb-12 animate-pop">{pairs[testIndex]?.icon}</div>
-            <div className="flex flex-wrap justify-center gap-4 max-w-md">
-                {COLORS.map((c, i) => (
-                    <button 
-                        key={i}
-                        onClick={() => handleAnswer(c)}
-                        className={`w-16 h-16 rounded-2xl ${c} shadow-lg hover:scale-110 transition-transform`}
-                    />
-                ))}
+        <div className={shell}>
+            <div className="flex items-center gap-2 mb-1 px-4 py-2 rounded-full bg-emerald-500/10 border border-emerald-500/40 text-emerald-300 font-black text-sm">
+                <MousePointer2 size={16} /> این آیتم چه رنگی بود؟
             </div>
+            <p className="text-slate-400 text-[11px] font-bold mb-5">
+                پرسش {toPersianNum(testIndex + 1)} از {toPersianNum(pairs.length)} — مرحله {toPersianNum(level + 1)} از {toPersianNum(PAIRED_LEVELS.length)}
+            </p>
+
+            <div className="text-7xl mb-7 animate-scale-in" key={testIndex}>{pairs[testIndex]?.icon}</div>
+
+            <div className="grid grid-cols-4 gap-3 max-w-sm">
+                {PAIRED_COLORS.map((c, i) => {
+                    const picked = lastPick?.color === c;
+                    const isAnswer = lastPick && pairs[testIndex]?.color === c;
+                    return (
+                        <button
+                            key={i}
+                            disabled={!!lastPick}
+                            onClick={() => handleAnswer(c)}
+                            className={`w-14 h-14 rounded-2xl ${c} shadow-lg transition-all duration-200 border-2
+                                ${isAnswer ? 'border-white scale-110 ring-4 ring-white/40'
+                                  : picked ? 'border-rose-300 opacity-70 scale-95'
+                                  : lastPick ? 'border-transparent opacity-40'
+                                  : 'border-transparent hover:scale-110 active:scale-95'}`}
+                        />
+                    );
+                })}
+            </div>
+            <p className="mt-5 text-[11px] text-slate-500 font-bold">از میان {toPersianNum(PAIRED_COLORS.length)} رنگ، رنگ درست را انتخاب کنید</p>
         </div>
     );
 };
@@ -506,11 +552,84 @@ const NBackGame: React.FC<{ onFinish: (score: number, rawScore: number) => void 
     );
 };
 
+// --- STAGE BRIEFINGS ---
+// Each stage is a different task, so it never starts cold: this card explains
+// what is about to happen and waits for the player before the stage mounts.
+type StageKey = 'corsi' | 'paired' | 'nback';
+const STAGE_BRIEF: Record<StageKey, { n: number; title: string; test: string; icon: any; steps: string[] }> = {
+    corsi: {
+        n: 1, title: 'حافظه فضایی', test: 'آزمون Corsi', icon: Server,
+        steps: [
+            'چند خانه از شبکه به‌ترتیب روشن می‌شوند؛ با دقت تماشا کنید.',
+            'سپس همان خانه‌ها را به همان ترتیب لمس کنید.',
+            'با هر پاسخ درست، طول الگو یک واحد بلندتر می‌شود.',
+        ],
+    },
+    paired: {
+        n: 2, title: 'حافظه تداعی‌گر', test: 'آزمون جفت‌ها', icon: Users,
+        steps: [
+            'ابتدا چند جفتِ «آیکون + رنگ» نمایش داده می‌شود؛ آن‌ها را حفظ کنید.',
+            'پس از پایان زمان یادگیری، جفت‌ها پنهان می‌شوند.',
+            'سپس هر آیکون را نشان می‌دهیم و شما رنگ آن را از میان ۸ رنگ انتخاب می‌کنید.',
+        ],
+    },
+    nback: {
+        n: 3, title: 'حافظه فعال', test: 'آزمون N-Back', icon: Cpu,
+        steps: [
+            'حروف یکی‌یکی نمایش داده می‌شوند.',
+            'هر بار که حرف فعلی با N حرف قبل یکسان بود، دکمه «تطابق» را بزنید.',
+            'ابتدا N برابر ۱ است و در ادامه به ۲ افزایش می‌یابد.',
+        ],
+    },
+};
+
+const StageBriefing: React.FC<{ stage: StageKey; onStart: () => void }> = ({ stage, onStart }) => {
+    const b = STAGE_BRIEF[stage];
+    const Icon = b.icon;
+    return (
+        <div className="h-full w-full flex items-center justify-center bg-gradient-to-b from-slate-900 to-slate-950 px-6 animate-fade-in">
+            <div className="max-w-md w-full bg-slate-800/70 border border-slate-700 rounded-3xl p-7 shadow-2xl backdrop-blur-sm animate-scale-in">
+                <div className="flex items-center gap-4 mb-5">
+                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center shrink-0 shadow-lg">
+                        <Icon size={26} />
+                    </div>
+                    <div>
+                        <div className="text-[11px] font-black text-emerald-400 mb-0.5">
+                            بخش {toPersianNum(b.n)} از ۳ · {b.test}
+                        </div>
+                        <h2 className="text-xl font-black text-white">{b.title}</h2>
+                    </div>
+                </div>
+
+                <ol className="space-y-2.5 mb-6">
+                    {b.steps.map((s, i) => (
+                        <li key={i} className="flex items-start gap-3">
+                            <span className="w-5 h-5 rounded-full bg-slate-700 text-slate-300 text-[10px] font-black flex items-center justify-center shrink-0 mt-0.5">
+                                {toPersianNum(i + 1)}
+                            </span>
+                            <span className="text-sm text-slate-300 leading-relaxed">{s}</span>
+                        </li>
+                    ))}
+                </ol>
+
+                <button
+                    onClick={onStart}
+                    className="w-full py-3.5 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-2xl font-black shadow-lg shadow-emerald-500/25 hover:shadow-xl active:scale-95 transition-all flex items-center justify-center gap-2"
+                >
+                    <Play size={18} fill="currentColor" /> شروع بخش {toPersianNum(b.n)}
+                </button>
+            </div>
+        </div>
+    );
+};
+
 // --- MAIN WRAPPER ---
 const MemoryGame: React.FC<Props> = ({ onExit, onComplete, onStepComplete }) => {
     const [gameState, setGameState] = useState<'intro' | 'playing' | 'paused' | 'finished'>('intro');
-    const [gameStage, setGameStage] = useState<'corsi' | 'paired' | 'nback'>('corsi');
-    
+    const [gameStage, setGameStage] = useState<StageKey>('corsi');
+    // Every stage opens with its own briefing so no task ever starts cold.
+    const [briefing, setBriefing] = useState(true);
+
     // Store raw scores for T-Score calculation
     const [rawScores, setRawScores] = useState({ corsi: 0, paired: 0, nback: 0 });
 
@@ -518,6 +637,7 @@ const MemoryGame: React.FC<Props> = ({ onExit, onComplete, onStepComplete }) => 
     useEffect(() => {
         if (gameState === 'playing') {
             setGameStage('corsi');
+            setBriefing(true);
         }
     }, [gameState]);
 
@@ -525,12 +645,14 @@ const MemoryGame: React.FC<Props> = ({ onExit, onComplete, onStepComplete }) => 
         setRawScores(prev => ({ ...prev, corsi: span }));
         if (onStepComplete) onStepComplete('corsi', score, span);
         setGameStage('paired');
+        setBriefing(true);
     };
 
     const handlePairedFinish = (acc: number, score: number) => {
         setRawScores(prev => ({ ...prev, paired: acc }));
         if (onStepComplete) onStepComplete('pairs', score, acc);
         setGameStage('nback');
+        setBriefing(true);
     };
 
     const handleNBackFinish = (score: number, dPrime: number) => {
@@ -557,9 +679,15 @@ const MemoryGame: React.FC<Props> = ({ onExit, onComplete, onStepComplete }) => 
             colorTheme="emerald"
         >
             <div className="h-full w-full relative overflow-hidden">
-                {gameStage === 'corsi' && <CorsiGame onFinish={handleCorsiFinish} />}
-                {gameStage === 'paired' && <PairedGame onFinish={handlePairedFinish} />}
-                {gameStage === 'nback' && <NBackGame onFinish={handleNBackFinish} />}
+                {briefing ? (
+                    <StageBriefing stage={gameStage} onStart={() => setBriefing(false)} />
+                ) : (
+                    <>
+                        {gameStage === 'corsi' && <CorsiGame onFinish={handleCorsiFinish} />}
+                        {gameStage === 'paired' && <PairedGame onFinish={handlePairedFinish} />}
+                        {gameStage === 'nback' && <NBackGame onFinish={handleNBackFinish} />}
+                    </>
+                )}
             </div>
         </GameShell>
     );
