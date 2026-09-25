@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Eye, Keyboard } from 'lucide-react';
-import GameShell from './GameShell';
+import GameShell, { GameState, PracticeBanner } from './GameShell';
 import GameResultCard from './GameResultCard';
 import { toPersianNum } from '../utils';
 import { calculateStroopScore, cleanReactionTimes, median } from '../utils/scoring';
@@ -25,7 +25,7 @@ const GAME_DURATION = 45;
 const PRACTICE_TRIALS = 3;
 
 const StroopGame: React.FC<Props> = ({ onExit, onComplete }) => {
-  const [gameState, setGameState] = useState<'intro' | 'playing' | 'paused' | 'finished'>('intro');
+  const [gameState, setGameState] = useState<GameState>('intro');
   const [timeLeft, setTimeLeft] = useState(GAME_DURATION);
   const [currentRound, setCurrentRound] = useState<{ text: string; colorHex: string; colorName: string }>({ text: '', colorHex: '', colorName: '' });
   const [flash, setFlash] = useState<'correct' | 'wrong' | null>(null);
@@ -46,10 +46,14 @@ const StroopGame: React.FC<Props> = ({ onExit, onComplete }) => {
       incongruentRTs: number[];
   }>({ congruentRTs: [], incongruentRTs: [] });
 
-  // Kick off the first round once GameShell's own intro button flips us to 'playing'.
+  // Kick off the first round once GameShell's own intro button flips us to
+  // 'playing'; on resume from pause, restart the trial's RT clock so the
+  // pause isn't scored as a (very slow) response.
   useEffect(() => {
-    if (gameState === 'playing' && roundColors.length === 0) generateRound();
-  }, [gameState, roundColors]);
+    if (gameState !== 'playing') return;
+    if (roundColors.length === 0) generateRound();
+    else roundStartTime.current = performance.now();
+  }, [gameState]);
 
   useEffect(() => {
     if (gameState === 'playing' && practiceLeft > 0) return; // clock frozen during practice
@@ -66,6 +70,7 @@ const StroopGame: React.FC<Props> = ({ onExit, onComplete }) => {
       if (gameState !== 'playing') return;
 
       const handleKey = (e: KeyboardEvent) => {
+          if (e.repeat) return; // a held key must not answer several trials
           const key = parseInt(e.key);
           if (!isNaN(key) && key >= 1 && key <= roundColors.length) {
               handleAnswer(roundColors[key-1].name);
@@ -74,7 +79,7 @@ const StroopGame: React.FC<Props> = ({ onExit, onComplete }) => {
 
       window.addEventListener('keydown', handleKey);
       return () => window.removeEventListener('keydown', handleKey);
-  }, [gameState, roundColors, currentRound]);
+  }, [gameState, roundColors, currentRound, practiceLeft]);
 
   const generateRound = () => {
     // 50/50 congruent/incongruent: enough congruent trials in a 45s run to
@@ -204,8 +209,9 @@ const StroopGame: React.FC<Props> = ({ onExit, onComplete }) => {
         instructions={[
           "رنگ واقعی نوشته را انتخاب کنید، نه کلمه‌ای که نوشته شده است.",
           "می‌توانید با کلیک روی گزینه‌ها یا کلیدهای ۱ تا ۴ پاسخ دهید.",
-          `${toPersianNum(GAME_DURATION)} ثانیه فرصت دارید؛ پاسخ اشتباه امتیاز کم می‌کند.`,
+          `${toPersianNum(PRACTICE_TRIALS)} پاسخ اول تمرینی است؛ سپس ${toPersianNum(GAME_DURATION)} ثانیه فرصت دارید و پاسخ اشتباه امتیاز کم می‌کند.`,
         ]}
+        keyboardHint="کلیدهای ۱ تا ۴ به ترتیب گزینه‌ها را انتخاب می‌کنند."
         icon={<Eye />}
         stats={{ score, timeLeft }}
         onExit={onExit}
@@ -216,10 +222,8 @@ const StroopGame: React.FC<Props> = ({ onExit, onComplete }) => {
     >
       <div className={`h-full w-full flex flex-col items-center justify-center rounded-3xl transition-colors duration-150 ${flash === 'correct' ? 'bg-emerald-100 dark:bg-emerald-900/40' : flash === 'wrong' ? 'bg-red-100 dark:bg-red-900/40' : ''}`}>
         {practiceLeft > 0 && (
-          <div className="absolute top-24 inset-x-0 flex justify-center z-20 pointer-events-none">
-            <div className="bg-amber-100 dark:bg-amber-500/15 border border-amber-300 dark:border-amber-500/40 text-amber-700 dark:text-amber-300 px-5 py-2 rounded-full text-sm font-black shadow-md animate-pulse">
-              دور تمرینی ({toPersianNum(practiceLeft)} مانده) — امتیاز و زمان ثبت نمی‌شود
-            </div>
+          <div className="pt-4 flex justify-center pointer-events-none">
+            <PracticeBanner left={practiceLeft} />
           </div>
         )}
         <div className="flex-1 flex flex-col items-center justify-center w-full">
@@ -230,7 +234,7 @@ const StroopGame: React.FC<Props> = ({ onExit, onComplete }) => {
               >
                   {currentRound.text}
               </h1>
-              <p className="text-center text-slate-400 dark:text-slate-500 font-bold mt-6 text-sm uppercase tracking-[0.2em] bg-slate-100 dark:bg-slate-800 inline-block px-4 py-1 rounded-full mx-auto flex items-center gap-2">
+              <p className="text-slate-400 dark:text-slate-500 font-bold mt-6 text-sm tracking-[0.2em] bg-slate-100 dark:bg-slate-800 w-fit px-4 py-1 rounded-full mx-auto flex items-center gap-2">
                   <Keyboard size={16} /> رنگ را انتخاب کنید
               </p>
           </div>

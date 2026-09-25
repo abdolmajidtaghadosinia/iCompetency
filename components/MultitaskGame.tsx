@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { LayoutGrid, Calculator, Palette, Check, X } from 'lucide-react';
-import GameShell from './GameShell';
+import GameShell, { GameState, PracticeBanner } from './GameShell';
 import GameResultCard from './GameResultCard';
 import { toPersianNum } from '../utils';
 import { cleanReactionTimes, median } from '../utils/scoring';
@@ -27,7 +27,7 @@ const COLORS = [
 ];
 
 const MultitaskGame: React.FC<Props> = ({ onExit, onComplete }) => {
-  const [gameState, setGameState] = useState<'intro' | 'playing' | 'paused' | 'finished'>('intro');
+  const [gameState, setGameState] = useState<GameState>('intro');
   const [timeLeft, setTimeLeft] = useState(GAME_DURATION);
   const [score, setScore] = useState(0);
   const [difficulty, setDifficulty] = useState(1);
@@ -58,7 +58,7 @@ const MultitaskGame: React.FC<Props> = ({ onExit, onComplete }) => {
   // Also regenerates after a pause: letting a paused round survive would let
   // players stop the clock mid-round to think, so resume starts a fresh round.
   useEffect(() => {
-    if (gameState === 'playing') generateTasks();
+    if (gameState === 'playing') generateTasks(difficulty);
   }, [gameState]);
 
   // Global assessment clock (frozen during practice).
@@ -92,15 +92,16 @@ const MultitaskGame: React.FC<Props> = ({ onExit, onComplete }) => {
       if (roundDoneRef.current) return;
       if (practiceLeft > 0) {
         setPracticeLeft(p => p - 1);
-        generateTasks();
+        generateTasks(difficulty);
         return;
       }
+      const next = Math.max(1, difficulty - 1);
       sfx.playError();
       setAttempts(prev => prev + 1);
       setScore(s => Math.max(0, s - (5 * difficulty)));
-      setDifficulty(d => Math.max(1, d - 1));
+      setDifficulty(next);
       if (navigator.vibrate) navigator.vibrate(200);
-      generateTasks();
+      generateTasks(next);
     }, roundDeadlineMs(difficulty));
 
     return () => clearTimeout(t);
@@ -111,6 +112,7 @@ const MultitaskGame: React.FC<Props> = ({ onExit, onComplete }) => {
     if (gameState !== 'playing') return;
 
     const handleKey = (e: KeyboardEvent) => {
+      if (e.repeat) return;
       const key = e.key.toLowerCase();
       if (key === 'a' && mathAnswer === null) handleMathInput(true);
       if (key === 's' && mathAnswer === null) handleMathInput(false);
@@ -129,7 +131,9 @@ const MultitaskGame: React.FC<Props> = ({ onExit, onComplete }) => {
     }
   }, [mathAnswer, colorAnswer]);
 
-  const generateTasks = () => {
+  // Difficulty is passed in because the next round is often generated from a
+  // timeout right after setDifficulty(), where the closure is still stale.
+  const generateTasks = (difficulty: number) => {
     setMathAnswer(null);
     setColorAnswer(null);
 
@@ -164,27 +168,28 @@ const MultitaskGame: React.FC<Props> = ({ onExit, onComplete }) => {
     if (practiceLeft > 0) {
       if (bothCorrect) sfx.playSuccess(); else sfx.playError();
       setPracticeLeft(p => p - 1);
-      setTimeout(generateTasks, 200);
+      setTimeout(() => generateTasks(difficulty), 200);
       return;
     }
 
     setAttempts(prev => prev + 1);
+    const next = bothCorrect ? Math.min(10, difficulty + 1) : Math.max(1, difficulty - 1);
 
     if (bothCorrect) {
       sfx.playSuccess();
       roundTimes.current.push(roundTime);
       setScore(s => s + (10 * difficulty));
       setCorrectCount(prev => prev + 1);
-      setDifficulty(d => Math.min(10, d + 1));
+      setDifficulty(next);
       if (navigator.vibrate) navigator.vibrate(50);
     } else {
       sfx.playError();
       setScore(s => Math.max(0, s - (5 * difficulty)));
-      setDifficulty(d => Math.max(1, d - 1));
+      setDifficulty(next);
       if (navigator.vibrate) navigator.vibrate(200);
     }
 
-    setTimeout(generateTasks, 200);
+    setTimeout(() => generateTasks(next), 200);
   };
 
   const resetRun = () => {
@@ -246,13 +251,13 @@ const MultitaskGame: React.FC<Props> = ({ onExit, onComplete }) => {
       gameState={gameState}
       setGameState={setGameState}
       colorTheme="purple"
+      tone="dark"
+      keyboardHint="زوج/فرد: کلیدهای A و S — تطابق رنگ: فلش چپ و راست."
     >
-      <div className="h-full w-full bg-slate-950 text-white flex flex-col p-2 rounded-3xl overflow-hidden">
+      <div className="h-full w-full text-white flex flex-col p-1 overflow-hidden">
         {practiceLeft > 0 && (
-          <div className="flex justify-center pt-2">
-            <div className="bg-amber-500/15 border border-amber-500/40 text-amber-300 px-5 py-2 rounded-full text-sm font-black animate-pulse">
-              دور تمرینی ({toPersianNum(practiceLeft)} مانده) — امتیاز و زمان ثبت نمی‌شود
-            </div>
+          <div className="flex justify-center pt-1">
+            <PracticeBanner left={practiceLeft} />
           </div>
         )}
 
