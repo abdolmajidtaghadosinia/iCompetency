@@ -34,7 +34,8 @@ hand-rolling it — see `components/PatternGame.tsx` for the reference shape:
 
 ```tsx
 const XGame: React.FC<{ onExit: () => void; onComplete: (score: number) => void }> = ({ onExit, onComplete }) => {
-  const [gameState, setGameState] = useState<'intro' | 'playing' | 'paused' | 'finished'>('intro');
+  const [gameState, setGameState] = useState<GameState>('intro'); // import GameShell, { GameState } from './GameShell'
+
   const [score, setScore] = useState(0);
   // ... game-specific state
 
@@ -46,9 +47,11 @@ const XGame: React.FC<{ onExit: () => void; onComplete: (score: number) => void 
   return (
     <GameShell
       title="..." description="..." instructions={[...]} icon={<... />}
-      stats={{ score /*, level, lives, maxLives, timeLeft, combo */ }}
-      onExit={onExit} onRestart={...} gameState={gameState} setGameState={setGameState}
+      stats={{ score /*, level, lives, maxLives, timeLeft, combo, progress: { current, total, label } */ }}
+      onExit={onExit} onRestart={resetRun} gameState={gameState} setGameState={setGameState}
       colorTheme="indigo" // pick one not already dominant in the hub to keep cards visually distinct
+      tone="dark"         // only if the play area is a dark stage; omit for theme-aware games
+      keyboardHint="..."  // if the game has keyboard controls
     >
       {/* game surface */}
     </GameShell>
@@ -58,8 +61,17 @@ const XGame: React.FC<{ onExit: () => void; onComplete: (score: number) => void 
 
 Requirements:
 - Persian UI text, RTL-safe layout (no hardcoded `left`/`right` that assumes LTR).
-- Add `dark:` variants for every surface. (No existing game does this — don't copy that gap into
-  a new one; see `CLAUDE.md` "Known gaps".)
+- Add `dark:` variants for every surface, or pass `tone="dark"` if the play area is a dark stage.
+- Result screens (`GameResultCard`, `MethodologyResult`, or a custom one wrapped in
+  `ResultOverlay`) render full-screen — don't render a result inside the page layout.
+- Pause must actually pause: stop every timer when `gameState !== 'playing'`, don't reset or
+  regenerate state when it flips back to `'playing'` (only on the first start), and restart the
+  current trial's RT clock on resume. `onRestart`/`onRetry` must set `gameState` to `'playing'`.
+- Content generated from a timeout after a `setX()` must receive the new value as a parameter —
+  the closure still holds the old state (this caused level/difficulty lag in several games).
+- Guard answers against double input: ignore clicks/keys during feedback, and `e.repeat` keys.
+- Feedback text the player should read is dismissed by the player, not a short timer.
+- Unscored warm-up trials use `PracticeBanner` from `GameShell`.
 - `onComplete(score)` fires exactly once, with the **raw score only** — never compute XP/level/coins
   client-side, the backend does that from the raw value.
 
@@ -70,7 +82,7 @@ Import the component and add a route block next to the other games:
 ```tsx
 {view === AppView.MINIGAME_X && (
   <XGame
-    onExit={() => changeView(AppView.MINIGAME_HUB)} // or JOURNEY_MAP if it's a journey node
+    onExit={exitGame} // returns to the hub/journey/dashboard the game was launched from
     onComplete={(s) => handleMiniGameComplete(s, 'node-id-or-empty-string', AppView.MINIGAME_X)}
   />
 )}
