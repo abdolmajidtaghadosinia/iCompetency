@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Zap } from 'lucide-react';
 import { toPersianNum } from '../utils';
-import GameShell from './GameShell';
+import GameShell, { GameState, PracticeBanner } from './GameShell';
 import GameResultCard from './GameResultCard';
 import { cleanReactionTimes, median } from '../utils/scoring';
 import { sfx } from '../services/audioService';
@@ -18,7 +18,7 @@ const GAME_DURATION = 35;
 const PRACTICE_ROUNDS = 2;
 
 const SpeedGame: React.FC<Props> = ({ onExit, onComplete }) => {
-  const [gameState, setGameState] = useState<'intro' | 'playing' | 'paused' | 'finished'>('intro');
+  const [gameState, setGameState] = useState<GameState>('intro');
   const [timeLeft, setTimeLeft] = useState(GAME_DURATION);
   const [score, setScore] = useState(0);
   const [difficulty, setDifficulty] = useState(1);
@@ -44,8 +44,10 @@ const SpeedGame: React.FC<Props> = ({ onExit, onComplete }) => {
   useEffect(() => {
     if (gameState !== 'playing') return;
 
-    // Generate initial level
-    if (grid.length === 0) generateLevel();
+    // Generate the first grid; after a pause, restart the current trial's RT
+    // clock so time spent in the pause menu isn't scored as reaction time.
+    if (grid.length === 0) generateLevel(difficulty);
+    else roundStartTime.current = performance.now();
 
     if (practiceLeft > 0) return; // clock frozen during practice
 
@@ -62,7 +64,9 @@ const SpeedGame: React.FC<Props> = ({ onExit, onComplete }) => {
     return () => clearInterval(timer);
   }, [gameState, practiceLeft]);
 
-  const generateLevel = () => {
+  // Difficulty is passed in: the next grid is generated from a timeout right
+  // after setDifficulty(), where the closed-over state is still the old value.
+  const generateLevel = (difficulty: number) => {
       let gridSize = 9; // 3x3
       let shapeSet = easyShapes;
 
@@ -103,11 +107,12 @@ const SpeedGame: React.FC<Props> = ({ onExit, onComplete }) => {
           if (isCorrect) sfx.playSuccess(); else sfx.playError();
           setFeedbackState({ index, type: isCorrect ? 'correct' : 'wrong' });
           setPracticeLeft(p => p - 1);
-          setTimeout(() => generateLevel(), 300);
+          setTimeout(() => generateLevel(difficulty), 300);
           return;
       }
 
       setAttempts(a => a + 1);
+      const nextDifficulty = isCorrect ? Math.min(10, difficulty + 1) : Math.max(1, difficulty - 1);
 
       if (isCorrect) {
           sfx.playSuccess();
@@ -120,21 +125,35 @@ const SpeedGame: React.FC<Props> = ({ onExit, onComplete }) => {
           setScore(s => s + (15 * difficulty * comboMultiplier) + speedBonus);
           setCorrectCount(prev => prev + 1);
           setCombo(c => c + 1);
-          setDifficulty(d => Math.min(10, d + 1));
+          setDifficulty(nextDifficulty);
           setFeedbackState({ index, type: 'correct' });
           if (navigator.vibrate) navigator.vibrate(50);
       } else {
           sfx.playError();
           setScore(s => Math.max(0, s - (10 * difficulty))); // Guessing costs points
           setCombo(1); // Reset Combo
-          setDifficulty(d => Math.max(1, d - 1));
+          setDifficulty(nextDifficulty);
           setFeedbackState({ index, type: 'wrong' });
           if (navigator.vibrate) navigator.vibrate(200);
       }
 
       // Always move to a fresh grid: staying on the same one after an error
       // let players scan through the remaining tiles risk-free.
-      setTimeout(() => generateLevel(), 300);
+      setTimeout(() => generateLevel(nextDifficulty), 300);
+  };
+
+  const resetRun = () => {
+      setTimeLeft(GAME_DURATION);
+      setScore(0);
+      setCombo(1);
+      setDifficulty(1);
+      setCorrectCount(0);
+      setAttempts(0);
+      setGrid([]);
+      setFeedbackState(null);
+      setPracticeLeft(0); // restarts/retries skip the warm-up
+      reactionTimes.current = [];
+      setGameState('playing');
   };
 
   if (gameState === 'finished') {
@@ -159,19 +178,7 @@ const SpeedGame: React.FC<Props> = ({ onExit, onComplete }) => {
                 { label: 'تعداد صحیح', value: toPersianNum(correctCount) },
                 { label: 'میانه واکنش', value: medRT > 0 ? toPersianNum(medRT) + ' ms' : '—' },
             ]}
-            onRetry={() => {
-                setTimeLeft(GAME_DURATION);
-                setScore(0);
-                setCombo(1);
-                setDifficulty(1);
-                setCorrectCount(0);
-                setAttempts(0);
-                setGrid([]);
-                setFeedbackState(null);
-                setPracticeLeft(0); // retries skip the warm-up
-                reactionTimes.current = [];
-                setGameState('playing');
-            }}
+            onRetry={resetRun}
             onComplete={() => onComplete(normalizedScore, { cognitiveRaw, durationMs: GAME_DURATION * 1000, trialCount: attempts })}
         />
       );
@@ -190,35 +197,21 @@ const SpeedGame: React.FC<Props> = ({ onExit, onComplete }) => {
             `یک شبکه از اشکال نمایش داده می‌شود.`,
             `همه شکل‌ها یکسان هستند به جز یکی.`,
             `روی شکل متفاوت کلیک کنید.`,
-            `سیستم میانگین زمان واکنش شما را محاسبه می‌کند.`,
+            `${toPersianNum(PRACTICE_ROUNDS)} دور اول تمرینی است؛ سپس ${toPersianNum(GAME_DURATION)} ثانیه زمان دارید.`,
+            `پاسخ اشتباه امتیاز کم می‌کند؛ میانه زمان واکنش شما ثبت می‌شود.`,
         ]}
         icon={<Zap />}
         stats={{ score, timeLeft, level: difficulty, combo }}
         onExit={onExit}
-        onRestart={() => {
-            setTimeLeft(GAME_DURATION);
-            setScore(0);
-            setCombo(1);
-            setDifficulty(1);
-            setCorrectCount(0);
-            setAttempts(0);
-            setGrid([]);
-            setFeedbackState(null);
-            setPracticeLeft(0); // restarts skip the warm-up
-            reactionTimes.current = [];
-            setGameState('playing');
-        }}
+        onRestart={resetRun}
         gameState={gameState}
         setGameState={setGameState}
         colorTheme="amber"
+        tone="dark"
     >
-        <div className="h-full w-full bg-slate-900 flex flex-col items-center justify-center p-4">
-             {practiceLeft > 0 && (
-                <div className="mb-4 bg-amber-500/15 border border-amber-500/40 text-amber-300 px-5 py-2 rounded-full text-sm font-black animate-pulse">
-                    دور تمرینی ({toPersianNum(practiceLeft)} مانده) — امتیاز و زمان ثبت نمی‌شود
-                </div>
-             )}
-             <h2 className="text-amber-400 font-bold text-lg mb-8 animate-pulse uppercase tracking-widest">شکل متفاوت را پیدا کنید</h2>
+        <div className="h-full w-full flex flex-col items-center justify-center p-2">
+             {practiceLeft > 0 && <div className="mb-4"><PracticeBanner left={practiceLeft} /></div>}
+             <h2 className="text-amber-400 font-bold text-lg mb-6 tracking-widest">شکل متفاوت را پیدا کنید</h2>
              
              <div className={`grid ${gridCols} gap-3 md:gap-4 p-4 max-w-md mx-auto w-full aspect-square transition-all duration-300`}>
                 {grid.map((item, idx) => {
