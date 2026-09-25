@@ -425,12 +425,21 @@ function org_unit_delete(int $orgId, int $unitId): void {
     // Nothing is orphaned silently: sub-units and people move up one level.
     $parent = $units[$unitId]['parent_id'] === null ? null : (int)$units[$unitId]['parent_id'];
     $pdo->beginTransaction();
+    // A manager without a unit reads the whole organization, so moving a
+    // top-level unit's managers to "no unit" would silently widen their
+    // access. Their scope is gone: they become regular members instead.
+    $demoted = 0;
+    if ($parent === null) {
+        $st = $pdo->prepare("UPDATE org_members SET org_role='member' WHERE org_id=? AND unit_id=? AND org_role='manager'");
+        $st->execute([$orgId, $unitId]);
+        $demoted = $st->rowCount();
+    }
     $pdo->prepare('UPDATE org_units SET parent_id=? WHERE org_id=? AND parent_id=?')->execute([$parent, $orgId, $unitId]);
     $pdo->prepare('UPDATE org_members SET unit_id=? WHERE org_id=? AND unit_id=?')->execute([$parent, $orgId, $unitId]);
     $pdo->prepare('DELETE FROM org_units WHERE id=? AND org_id=?')->execute([$unitId, $orgId]);
-    org_audit($pdo, $orgId, (int)$a['user']['id'], 'unit.delete', (string)$units[$unitId]['name']);
+    org_audit($pdo, $orgId, (int)$a['user']['id'], 'unit.delete', (string)$units[$unitId]['name'], $demoted ? ['demotedManagers' => $demoted] : []);
     $pdo->commit();
-    success_response(['deleted' => true]);
+    success_response(['deleted' => true, 'demotedManagers' => $demoted]);
 }
 
 // --- Members -----------------------------------------------------------------------

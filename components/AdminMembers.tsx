@@ -358,7 +358,7 @@ const MemberFormModal: React.FC<{
           <Field label="سمت"><input className={inputClass} value={form.jobTitle} onChange={set('jobTitle')} /></Field>
           <Field label="کد پرسنلی"><input className={inputClass} value={form.employeeCode} onChange={set('employeeCode')} dir="ltr" /></Field>
         </div>
-        <Field label="نقش" hint="مدیر واحد: مشاهده گزارش‌های واحد خود (فقط خواندنی). مدیر سازمان: مدیریت کامل؛ در آمار نیروی انسانی شمرده نمی‌شود.">
+        <Field label="نقش" hint="مدیر واحد: مشاهده گزارش‌های واحد خود و زیرواحدها (فقط خواندنی)؛ مدیر واحدِ بدون واحد کل سازمان را می‌بیند. مدیر سازمان: مدیریت کامل؛ در آمار نیروی انسانی شمرده نمی‌شود.">
           <select className={inputClass} value={form.orgRole} onChange={set('orgRole')}>
             <option value="member">{ROLE_LABELS.member}</option>
             <option value="manager">{ROLE_LABELS.manager}</option>

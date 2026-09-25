@@ -97,7 +97,8 @@ const AdminUnits: React.FC<WorkspaceProps> = ({ ws, reload, notify, canManage })
           </>
         }>
           <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-            زیرواحدها و {toPersianNum(deleting.memberCount)} نفرِ این واحد به واحد بالاتر {deleting.parentId ? '' : '(یا «بدون واحد») '}منتقل می‌شوند. هیچ فردی از سازمان حذف نمی‌شود.
+            زیرواحدها و {toPersianNum(deleting.memberCount)} نفرِ این واحد به {deleting.parentId ? 'واحد بالاتر' : '«بدون واحد»'} منتقل می‌شوند. هیچ فردی از سازمان حذف نمی‌شود.
+            {!deleting.parentId && ' مدیران این واحد به «کارمند» تبدیل می‌شوند، چون مدیر واحد بدون واحد به کل سازمان دسترسی دارد.'}
           </p>
         </Modal>
       )}
