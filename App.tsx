@@ -10,6 +10,8 @@ import BackgroundQuotes from './components/BackgroundQuotes';
 import BigFiveGame from './components/BigFiveGame';
 import AuthScreen from './components/AuthScreen';
 import Toast, { ToastData } from './components/Toast';
+import AdminPanel from './components/AdminPanel';
+import JoinOrgScreen from './components/JoinOrgScreen';
 
 // Methodology Games
 import FiveWhysGame from './components/FiveWhysGame';
@@ -57,6 +59,8 @@ import { setNorms } from './utils/scoring';
 // paths - every other component still speaks in AppView, unchanged.
 const VIEW_PATHS: Record<AppView, string> = {
   [AppView.DASHBOARD]: '/dashboard',
+  [AppView.ADMIN]: '/admin',
+  [AppView.JOIN_ORG]: '/join',
   [AppView.JOURNEY_MAP]: '/journey',
   [AppView.MINIGAME_HUB]: '/games',
   [AppView.VERIFIED_RESUME]: '/resume',
@@ -158,7 +162,8 @@ function App() {
   const [darkMode, setDarkMode] = useState(false);
   const [toast, setToast] = useState<ToastData | null>(null);
 
-  const currentView = PATH_TO_VIEW[location.pathname] ?? AppView.DASHBOARD;
+  const currentView = PATH_TO_VIEW[location.pathname]
+    ?? (location.pathname.startsWith('/admin/') ? AppView.ADMIN : AppView.DASHBOARD);
 
   // Last launcher screen visited; a deep link straight into a game falls back
   // to the hub.
@@ -194,6 +199,16 @@ function App() {
     setUser(migratedProfile);
     setAuthState('authenticated');
     changeView(AppView.DASHBOARD);
+  };
+
+  const notify = (message: string, type: 'success' | 'error' = 'success') => setToast({ message, type });
+
+  // Invite accepted from /join: the server returns the refreshed profile
+  // (now listing the organization and its required assessments).
+  const handleOrgJoined = (profile: UserProfile, orgName: string) => {
+    applyServerProfile(profile);
+    changeView(AppView.DASHBOARD);
+    notify(`به سازمان «${orgName}» پیوستید. آزمون‌های الزامی در داشبورد شما نمایش داده می‌شود.`);
   };
 
   useEffect(() => {
@@ -342,6 +357,22 @@ function App() {
     return loaderScreen;
   }
 
+  // Invite links work before login too: the join screen signs the person in
+  // (or up) and accepts the invite in one flow.
+  if (authState === 'anonymous' && location.pathname === VIEW_PATHS[AppView.JOIN_ORG]) {
+    return (
+      <>
+        {toast && <Toast {...toast} onDismiss={() => setToast(null)} />}
+        <JoinOrgScreen
+          onAuthenticated={async (payload, joinedOrg) => {
+            await finishAuth(payload);
+            if (joinedOrg) notify(`به سازمان «${joinedOrg}» پیوستید. آزمون‌های الزامی در داشبورد شما نمایش داده می‌شود.`);
+          }}
+        />
+      </>
+    );
+  }
+
   if (authState === 'anonymous') {
     return (
       <AuthScreen
@@ -366,7 +397,7 @@ function App() {
         user={user}
       />
 
-      <main className="flex-1 h-full md:mr-20 lg:mr-72 pb-20 md:pb-0 transition-all duration-300 relative z-10">
+      <main className="flex-1 min-w-0 h-full md:mr-20 lg:mr-72 pb-20 md:pb-0 transition-all duration-300 relative z-10">
           <div className="h-full w-full animate-fade-in-up overflow-hidden">
             <Routes>
               <Route path="/" element={<Navigate to={VIEW_PATHS[AppView.DASHBOARD]} replace />} />
@@ -381,6 +412,7 @@ function App() {
                     onNavigate={(v) => changeView(v)}
                     isDarkMode={darkMode}
                     toggleTheme={toggleTheme}
+                    onProfileUpdate={(profile) => { applyServerProfile(profile); notify('از سازمان خارج شدید؛ نتایج شما دیگر برای سازمان نمایش داده نمی‌شود.'); }}
                   />
                 )}
               />
@@ -396,6 +428,8 @@ function App() {
                 )}
               />
               <Route path={VIEW_PATHS[AppView.MINIGAME_HUB]} element={<MiniGameHub onSelectGame={changeView} user={user} />} />
+              <Route path={`${VIEW_PATHS[AppView.ADMIN]}/*`} element={<AdminPanel notify={notify} />} />
+              <Route path={VIEW_PATHS[AppView.JOIN_ORG]} element={<JoinOrgScreen user={user} onJoined={handleOrgJoined} onSkip={() => changeView(AppView.DASHBOARD)} />} />
               <Route path={VIEW_PATHS[AppView.MINIGAME_BIGFIVE]} element={<BigFiveGame onExit={exitGame} onComplete={handleBigFiveComplete} />} />
               <Route path={VIEW_PATHS[AppView.VERIFIED_RESUME]} element={<VerifiedResume user={user} isDarkMode={darkMode} />} />
 

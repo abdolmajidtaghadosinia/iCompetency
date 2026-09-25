@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { AppView, UserProfile } from '../types';
-import { LayoutDashboard, Workflow, BrainCircuit, LogOut, FileBadge, Globe, Volume2, VolumeX, Hexagon } from 'lucide-react';
+import { LayoutDashboard, Workflow, BrainCircuit, LogOut, FileBadge, Globe, Volume2, VolumeX, Hexagon, Building2 } from 'lucide-react';
 import { sfx } from '../services/audioService';
 
 interface SidebarProps {
@@ -19,7 +19,7 @@ interface MenuItem {
   disabled?: boolean;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, onLogout }) => {
+const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, onLogout, user }) => {
   const [isMuted, setIsMuted] = useState(sfx.muted);
 
   const toggleSound = () => {
@@ -64,6 +64,11 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, onLogout }
       description: 'گزارش نهایی',
       icon: FileBadge 
     },
+    // Organization panel: platform admins, org admins and unit managers only
+    // (the server enforces access; this just hides a dead end).
+    ...((user.platformAdmin || user.organizations?.some(o => o.orgRole === 'admin' || o.orgRole === 'manager'))
+      ? [{ id: AppView.ADMIN, label: 'سازمان', description: 'پنل مدیریت سازمان', icon: Building2 }]
+      : []),
   ];
 
   return (

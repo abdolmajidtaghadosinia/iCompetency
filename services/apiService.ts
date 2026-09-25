@@ -1,4 +1,7 @@
-import type { AppView, BigFiveValidityIndicators, UserProfile } from '../types';
+import type {
+  AppView, BigFiveValidityIndicators, UserProfile, InviteInfo, Organization, OrgAuditEntry, OrgDashboardData,
+  OrgImportResult, OrgImportRow, OrgInvite, OrgListItem, OrgMemberReport, OrgMemberSummary, OrgRole, OrgWorkspace,
+} from '../types';
 
 const API_BASE_URL = (((import.meta as any).env?.VITE_API_BASE_URL as string | undefined) || '/backend').replace(/\/+$/, '');
 const TOKEN_KEY = 'iCompetency_Token';
@@ -256,3 +259,68 @@ export const aiGenerate = <T>(task: string, params: Record<string, unknown> = {}
   method: 'POST',
   body: JSON.stringify({ task, params }),
 });
+
+// ---- Organizations (docs/organizations.md) ---------------------------------------
+
+const jsonBody = (method: string, body: unknown): RequestInit => ({ method, body: JSON.stringify(body ?? {}) });
+
+// Platform admin
+export const listAllOrganizations = () =>
+  apiRequest<{ organizations: OrgListItem[]; totals: { organizations: number; users: number; members: number; assessments30d: number } }>('/admin/orgs');
+export const createOrganization = (data: {
+  name: string; industry?: string; description?: string; seatLimit?: number | null;
+  requiredAssessments?: string[]; dueDate?: string | null; adminEmail?: string; adminName?: string;
+}) => apiRequest<{ organization: Organization; adminInvite: (OrgInvite & { email: string }) | null }>('/admin/orgs', jsonBody('POST', data));
+export const updateOrganizationAsPlatform = (orgId: number, data: Partial<{
+  name: string; industry: string | null; description: string | null; status: 'active' | 'suspended';
+  seatLimit: number | null; requiredAssessments: string[]; dueDate: string | null;
+}>) => apiRequest<{ organization: Organization }>(`/admin/orgs/${orgId}`, jsonBody('PUT', data));
+export const deleteOrganization = (orgId: number, confirmName: string) =>
+  apiRequest<{ deleted: boolean }>(`/admin/orgs/${orgId}`, jsonBody('DELETE', { confirmName }));
+
+// Organization workspace (org admins; managers read-only)
+export const listMyOrganizations = () =>
+  apiRequest<{ organizations: { id: number; name: string; status: string; role: string }[]; platformAdmin: boolean }>('/orgs');
+export const getOrgWorkspace = (orgId: number) => apiRequest<OrgWorkspace>(`/orgs/${orgId}`);
+export const updateOrgSettings = (orgId: number, data: Partial<{
+  name: string; industry: string | null; description: string | null; requiredAssessments: string[]; dueDate: string | null;
+}>) => apiRequest<{ organization: Organization }>(`/orgs/${orgId}`, jsonBody('PUT', data));
+export const getOrgDashboard = (orgId: number, unitId?: number | null) =>
+  apiRequest<OrgDashboardData>(`/orgs/${orgId}/dashboard${unitId ? `?unitId=${unitId}` : ''}`);
+export const getOrgAudit = (orgId: number, limit = 60) =>
+  apiRequest<{ entries: OrgAuditEntry[] }>(`/orgs/${orgId}/audit?limit=${limit}`);
+
+export const createOrgUnit = (orgId: number, data: { name: string; parentId?: number | null; code?: string }) =>
+  apiRequest<{ unit: { id: number; name: string; parentId: number | null } }>(`/orgs/${orgId}/units`, jsonBody('POST', data));
+export const updateOrgUnit = (orgId: number, unitId: number, data: Partial<{ name: string; parentId: number | null; code: string | null }>) =>
+  apiRequest<{ updated: boolean }>(`/orgs/${orgId}/units/${unitId}`, jsonBody('PUT', data));
+export const deleteOrgUnit = (orgId: number, unitId: number) =>
+  apiRequest<{ deleted: boolean }>(`/orgs/${orgId}/units/${unitId}`, { method: 'DELETE' });
+
+export const listOrgMembers = (orgId: number) => apiRequest<{ members: OrgMemberSummary[] }>(`/orgs/${orgId}/members`);
+export const createOrgMember = (orgId: number, data: {
+  fullName: string; email: string; unitId?: number | null; jobTitle?: string; employeeCode?: string; orgRole?: OrgRole; sendEmail?: boolean;
+}) => apiRequest<{ memberId: number; invite: OrgInvite }>(`/orgs/${orgId}/members`, jsonBody('POST', data));
+export const importOrgMembers = (orgId: number, data: {
+  rows: OrgImportRow[]; dryRun: boolean; createUnits: boolean; updateExisting: boolean; sendEmail?: boolean;
+}) => apiRequest<OrgImportResult>(`/orgs/${orgId}/members/import`, jsonBody('POST', data));
+export const getOrgMemberReport = (orgId: number, memberId: number) =>
+  apiRequest<OrgMemberReport>(`/orgs/${orgId}/members/${memberId}`);
+export const updateOrgMember = (orgId: number, memberId: number, data: Partial<{
+  fullName: string; email: string; unitId: number | null; jobTitle: string | null; employeeCode: string | null; orgRole: OrgRole; status: 'active' | 'inactive';
+}>) => apiRequest<{ updated: boolean }>(`/orgs/${orgId}/members/${memberId}`, jsonBody('PUT', data));
+export const deleteOrgMember = (orgId: number, memberId: number) =>
+  apiRequest<{ deleted: boolean }>(`/orgs/${orgId}/members/${memberId}`, { method: 'DELETE' });
+export const reinviteOrgMember = (orgId: number, memberId: number, sendEmail = false) =>
+  apiRequest<{ invite: OrgInvite }>(`/orgs/${orgId}/members/${memberId}/invite`, jsonBody('POST', { sendEmail }));
+
+// Member side
+export const lookupInvite = (token: string) =>
+  apiRequest<InviteInfo>(`/invites/lookup?token=${encodeURIComponent(token)}`, {}, false);
+export const acceptInvite = (token: string) =>
+  apiRequest<{ orgId: number; orgName: string; profile: UserProfile }>('/invites/accept', jsonBody('POST', { token, consent: true }));
+export const leaveOrganization = (orgId: number) =>
+  apiRequest<{ profile: UserProfile }>(`/orgs/${orgId}/leave`, jsonBody('POST', {}));
+
+// The join page link for an invite token, on this deployment's origin.
+export const inviteLink = (token: string) => `${window.location.origin}/join?token=${token}`;

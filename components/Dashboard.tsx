@@ -13,6 +13,7 @@ import {
   ASSESSMENTS, AssessmentDef, CATEGORY_LABELS, getDossier, getEvidenceCoverage,
   getNextAction, isAssessmentDone,
 } from '../utils/assessmentInventory';
+import OrgMembershipCard from './OrgMembershipCard';
 
 interface DashboardProps {
   user: UserProfile;
@@ -22,6 +23,7 @@ interface DashboardProps {
   onNavigate?: (view: AppView) => void;
   isDarkMode: boolean;
   toggleTheme: () => void;
+  onProfileUpdate?: (profile: UserProfile) => void;
 }
 
 // Per-assessment icon, keyed by AppView so the inventory stays data-only.
@@ -102,7 +104,7 @@ const CognitiveRadar: React.FC<{ t: Record<string, number>; animate: boolean }> 
 };
 
 const Dashboard: React.FC<DashboardProps> = ({
-  user, onStartScenario, onOpenBigFive, onOpenResume, onNavigate, isDarkMode, toggleTheme,
+  user, onStartScenario, onOpenBigFive, onOpenResume, onNavigate, isDarkMode, toggleTheme, onProfileUpdate,
 }) => {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [animateStats, setAnimateStats] = useState(false);
@@ -211,6 +213,9 @@ const Dashboard: React.FC<DashboardProps> = ({
           </div>
         </div>
       </header>
+
+      {/* Organization assignment (docs/organizations.md) */}
+      <OrgMembershipCard user={user} onNavigate={onNavigate} onProfileUpdate={onProfileUpdate} />
 
       {/* ===== HERO: assessment dossier + the single best next step ===== */}
       <div className="grid grid-cols-12 gap-6 mb-6">

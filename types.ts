@@ -71,6 +71,10 @@ export interface UserProfile {
   // Server-computed O*NET-anchored person-environment career fit
   // (docs/career-fit.md). Advisory/exploratory — never a hiring verdict.
   careerFit?: CareerFitResult[];
+  // Active organization memberships (docs/organizations.md) and whether this
+  // account is a platform admin. Both are server-provided.
+  organizations?: OrgMembership[];
+  platformAdmin?: boolean;
 }
 
 export interface CareerFitResult {
@@ -182,6 +186,8 @@ export interface EvaluationResult {
 
 export enum AppView {
   DASHBOARD = 'DASHBOARD',
+  ADMIN = 'ADMIN',         // organization admin panel (/admin/*)
+  JOIN_ORG = 'JOIN_ORG',   // invite acceptance (/join?token=)
   JOURNEY_MAP = 'JOURNEY_MAP',
   MINIGAME_HUB = 'MINIGAME_HUB', 
   VERIFIED_RESUME = 'VERIFIED_RESUME', 
@@ -305,4 +311,189 @@ export interface FactFindingScenario {
   categories: FactCategory[];
   options: { id: string; text: string; isCorrect: boolean; feedback: string }[];
   _fallback?: boolean;
+}
+
+// ---- Organizations (docs/organizations.md) --------------------------------------
+
+export type OrgRole = 'member' | 'manager' | 'admin';
+export type OrgMemberStatus = 'invited' | 'active' | 'inactive' | 'left';
+export type OrgAccessRole = 'super' | 'admin' | 'manager';
+
+export interface OrgMembership {
+  memberId: number;
+  orgId: number;
+  orgName: string;
+  orgRole: OrgRole;
+  jobTitle: string | null;
+  unitPath: string | null;
+  requiredAssessments: string[];
+  dueDate: string | null;
+  joinedAt: string | null;
+}
+
+export interface Organization {
+  id: number;
+  name: string;
+  industry: string | null;
+  description: string | null;
+  status: 'active' | 'suspended';
+  seatLimit: number | null;
+  requiredAssessments: string[];
+  dueDate: string | null;
+  createdAt: string;
+}
+
+export interface OrgListItem extends Organization {
+  counts: { total: number; active: number; invited: number; admins: number };
+}
+
+export interface OrgUnit {
+  id: number;
+  name: string;
+  code: string | null;
+  parentId: number | null;
+  path: string;
+  depth: number;
+  memberCount: number;
+}
+
+export interface OrgCatalogItem {
+  view: string;
+  code: string;
+  title: string;
+  category: 'cognitive' | 'methodology' | 'personality';
+}
+
+export interface OrgWorkspace {
+  organization: Organization;
+  role: OrgAccessRole;
+  scopeUnitIds: number[] | null;
+  units: OrgUnit[];
+  seats: { used: number; limit: number | null };
+  catalog: OrgCatalogItem[];
+  inviteTtlDays: number;
+}
+
+export interface OrgMemberSummary {
+  id: number;
+  userId: number | null;
+  fullName: string;
+  email: string;
+  accountEmail: string | null;
+  employeeCode: string | null;
+  jobTitle: string | null;
+  unitId: number | null;
+  unitPath: string | null;
+  orgRole: OrgRole;
+  status: OrgMemberStatus;
+  invitedAt: string | null;
+  inviteExpiresAt: string | null;
+  joinedAt: string | null;
+  lastLoginAt: string | null;
+  lastActivityAt: string | null;
+  requiredDone: number;
+  requiredTotal: number;
+  completionPct: number;
+  completedAssessments: string[];
+  overallScore: number | null;
+  competencies: Record<string, number | null>;
+  bigFiveValidity: 'valid' | 'caution' | 'invalid' | null;
+}
+
+export interface OrgInvite {
+  token: string;
+  expiresAt: string;
+  emailed: boolean;
+}
+
+export interface OrgUnitRollup {
+  id: number; // 0 = members without a unit
+  name: string;
+  path: string;
+  parentId: number | null;
+  depth: number;
+  headcount: number;
+  active: number;
+  completionPct: number;
+  overallMean: number | null;
+  competencies: Record<string, { mean: number | null; n: number }>;
+}
+
+export interface OrgDashboardData {
+  generatedAt: string;
+  scope: { unitId: number | null; unitPath: string | null; restricted: boolean };
+  headcount: { total: number; invited: number; active: number; inactive: number; left: number };
+  funnel: { invited: number; joined: number; started: number; completed: number };
+  completion: { requiredCount: number; avgPct: number; dueDate: string | null; daysLeft: number | null; overdue: number };
+  overallMean: number | null;
+  assessments: { view: string; code: string; title: string; category: string; required: boolean; done: number; of: number }[];
+  competencies: { key: string; title: string; n: number; mean: number | null; buckets: Record<'develop' | 'average' | 'good' | 'strong', number> }[];
+  cognitive: { key: string; title: string; n: number; meanT: number | null }[];
+  bigFive: { n: number; invalidExcluded: number; traits: Record<string, number | null> };
+  units: OrgUnitRollup[];
+  recent: { memberId: number; fullName: string; view: string; title: string; at: string }[];
+  followUp: {
+    notJoinedCount: number;
+    noProgressCount: number;
+    notJoined: { id: number; fullName: string; email: string; unitPath: string | null; since: string | null }[];
+    noProgress: { id: number; fullName: string; email: string; unitPath: string | null; since: string | null }[];
+  };
+}
+
+export interface OrgMemberReport {
+  member: OrgMemberSummary;
+  report: null | {
+    competencies: CompetencyResult[];
+    careerFit: CareerFitResult[];
+    bigFive: UserProfile['bigFive'] | null;
+    methodology: Record<string, { score: number; dimensions: Record<string, number>; updatedAt?: string }>;
+    cognitiveTests: { key: string; title: string; tScore: number | null; label: string | null }[];
+    assessments: { view: string; code: string; title: string; category: string; required: boolean; done: boolean }[];
+    history: { view: string; title: string; rawScore: number; at: string }[];
+  };
+}
+
+export interface OrgImportRow {
+  fullName: string;
+  email: string;
+  unit?: string;
+  jobTitle?: string;
+  employeeCode?: string;
+  orgRole?: OrgRole;
+}
+
+export interface OrgImportResult {
+  dryRun: boolean;
+  summary: { created: number; updated: number; skipped: number; errors: number; total: number; newUnits: string[] };
+  rows: {
+    row: number;
+    email: string | null;
+    fullName: string | null;
+    status: 'created' | 'updated' | 'skipped' | 'error';
+    message: string | null;
+    memberId?: number;
+    inviteToken?: string;
+    expiresAt?: string;
+    emailed?: boolean;
+  }[];
+}
+
+export interface OrgAuditEntry {
+  id: number;
+  action: string;
+  target: string | null;
+  details: Record<string, unknown> | null;
+  actorName: string | null;
+  at: string;
+}
+
+export interface InviteInfo {
+  orgName: string;
+  fullName: string;
+  email: string;
+  unitPath: string | null;
+  jobTitle: string | null;
+  orgRole: OrgRole;
+  expired: boolean;
+  orgActive: boolean;
 }
