@@ -3,7 +3,7 @@ import React from 'react';
 import { AppView, UserProfile } from '../types';
 import {
   Layers, Calculator, Zap, Box, Compass, Eye, LayoutGrid, BrainCircuit, Lock, CheckCircle2, Play, Grid, Search,
-  HelpCircle, Target, Network, Users
+  HelpCircle, Target, Network, Users, Briefcase
 } from 'lucide-react';
 import { toPersianNum } from '../utils';
 
@@ -24,11 +24,23 @@ interface GameCardData {
   progress: number;
 }
 
+// The whole card is one keyboard-reachable button (it was a clickable div
+// wrapping a second, inert <button>, so it couldn't be focused or opened
+// from the keyboard).
 const GameCard: React.FC<{ game: GameCardData; index: number; onSelectGame: (view: AppView) => void }> = ({ game, index, onSelectGame }) => (
   <div
+    role="button"
+    tabIndex={0}
+    aria-label={`شروع ${game.title}`}
     onClick={() => onSelectGame(game.id)}
+    onKeyDown={(e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        onSelectGame(game.id);
+      }
+    }}
     style={{ animationDelay: `${index * 50}ms` }}
-    className="group relative bg-white dark:bg-slate-800 rounded-3xl p-5 shadow-soft dark:shadow-none border border-slate-100 dark:border-slate-700 hover:-translate-y-2 hover:shadow-xl cursor-pointer transition-all duration-300 animate-fade-in-up"
+    className="group relative bg-white dark:bg-slate-800 rounded-3xl p-5 shadow-soft dark:shadow-none border border-slate-100 dark:border-slate-700 hover:-translate-y-2 hover:shadow-xl focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-indigo-400/60 cursor-pointer transition-all duration-300 animate-fade-in-up"
   >
     <div className={`h-32 rounded-2xl bg-gradient-to-br ${game.gradient} mb-5 flex items-center justify-center relative overflow-hidden`}>
       <div className="absolute top-3 left-3 bg-white/50 dark:bg-black/20 backdrop-blur-sm px-2 py-1 rounded-lg text-[10px] font-black text-slate-700 dark:text-white">
@@ -54,9 +66,9 @@ const GameCard: React.FC<{ game: GameCardData; index: number; onSelectGame: (vie
           </div>
           <span className={`text-[10px] font-bold ${game.accent}`}>{toPersianNum(game.progress)}%</span>
         </div>
-        <button className="w-full py-3 rounded-xl bg-slate-50 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs flex items-center justify-center gap-2 group-hover:bg-slate-900 group-hover:text-white dark:group-hover:bg-indigo-600 transition-all">
+        <span className="w-full py-3 rounded-xl bg-slate-50 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs flex items-center justify-center gap-2 group-hover:bg-slate-900 group-hover:text-white dark:group-hover:bg-indigo-600 transition-all">
           <Play size={14} fill="currentColor" /> شروع
-        </button>
+        </span>
       </div>
     </div>
   </div>
@@ -173,7 +185,7 @@ const MiniGameHub: React.FC<Props> = ({ onSelectGame, user }) => {
       code: "A19",
       title: "شبیه‌ساز نقش‌آفرینی",
       description: "نسخه پیچیده حقیقت‌یابی. تصمیم‌گیری تحت فشار با اطلاعات ناقص به عنوان مدیرعامل.",
-      icon: <Search className="w-8 h-8 text-indigo-600 dark:text-indigo-400" />,
+      icon: <Briefcase className="w-8 h-8 text-indigo-600 dark:text-indigo-400" />,
       gradient: "from-indigo-100 to-blue-50 dark:from-indigo-900/40 dark:to-blue-900/20",
       accent: "text-indigo-600 dark:text-indigo-400",
       bar: "bg-indigo-500",
