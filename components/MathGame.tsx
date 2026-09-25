@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Calculator, CheckCircle2, Eraser, Timer } from 'lucide-react';
+import { Calculator, CheckCircle2, Eraser } from 'lucide-react';
 import { toPersianNum } from '../utils';
-import GameShell from './GameShell';
+import GameShell, { GameState } from './GameShell';
 import GameResultCard from './GameResultCard';
 import { sfx } from '../services/audioService';
 
@@ -16,7 +16,7 @@ interface Props {
 const INITIAL_TIME = 300; // 5 Minutes Total
 
 const MathGame: React.FC<Props> = ({ onExit, onComplete }) => {
-  const [gameState, setGameState] = useState<'intro' | 'playing' | 'paused' | 'finished'>('intro');
+  const [gameState, setGameState] = useState<GameState>('intro');
   const [timeLeft, setTimeLeft] = useState(INITIAL_TIME);
   const [score, setScore] = useState(0);
   const [level, setLevel] = useState(1);
@@ -31,15 +31,15 @@ const MathGame: React.FC<Props> = ({ onExit, onComplete }) => {
   const [correctQuestions, setCorrectQuestions] = useState(0);
 
   // Construct-measure bookkeeping (kept out of the gamified score). The clean
-  // A10 measure is weighted-correct-per-real-minute × accuracy, so it ignores
+  // A10 measure is weighted-correct-per-active-minute × accuracy, so it ignores
   // the streak multiplier and the fact that correct answers extend the clock.
-  const startedAtRef = useRef(0);
-  const finishedAtRef = useRef(0);
+  // Active time is counted in clock ticks, which only run while playing, so
+  // time spent in the pause menu no longer dilutes the throughput.
+  const activeMsRef = useRef(0);
   const correctWeightRef = useRef(0);
 
   const resetMeasures = () => {
-    startedAtRef.current = 0;
-    finishedAtRef.current = 0;
+    activeMsRef.current = 0;
     correctWeightRef.current = 0;
   };
 
@@ -47,13 +47,13 @@ const MathGame: React.FC<Props> = ({ onExit, onComplete }) => {
   useEffect(() => {
     if (gameState !== 'playing') return;
     if (!question.text) generateQuestion(1);
-    if (startedAtRef.current === 0) startedAtRef.current = Date.now();
+    else setQuestionStartTime(Date.now()); // resume: don't bill the pause to this question
 
     const timer = setInterval(() => {
+      activeMsRef.current += 1000;
       setTimeLeft(prev => {
-        if (prev <= 0) {
+        if (prev <= 1) {
           clearInterval(timer);
-          finishedAtRef.current = Date.now();
           setGameState('finished');
           return 0;
         }
@@ -104,12 +104,14 @@ const MathGame: React.FC<Props> = ({ onExit, onComplete }) => {
           const b = rand(2, 10);
           const c = rand(2, 10);
           const template = rand(1, 3);
+          // Subtraction only when the result stays non-negative: the keypad
+          // has no minus key, so a negative answer was unanswerable.
           if (template === 1) {
-             const op2 = Math.random() > 0.5 ? '+' : '-';
+             const op2 = Math.random() > 0.5 && a * b >= c ? '-' : '+';
              qAns = op2 === '+' ? (a * b) + c : (a * b) - c;
              qText = `${a} × ${b} ${op2} ${c}`;
           } else {
-             const op1 = Math.random() > 0.5 ? '+' : '-';
+             const op1 = Math.random() > 0.5 && a >= b * c ? '-' : '+';
              qAns = op1 === '+' ? a + (b * c) : a - (b * c);
              qText = `${a} ${op1} ${b} × ${c}`;
           }
@@ -120,7 +122,7 @@ const MathGame: React.FC<Props> = ({ onExit, onComplete }) => {
           const a = rand(5, 20);
           const b = rand(2, 10);
           const c = rand(2, 5);
-          const opIn = Math.random() > 0.5 ? '+' : '-';
+          const opIn = Math.random() > 0.5 && a >= b ? '-' : '+';
           qAns = (opIn === '+' ? a + b : a - b) * c;
           qText = `(${a} ${opIn} ${b}) × ${c}`;
         }
@@ -137,7 +139,7 @@ const MathGame: React.FC<Props> = ({ onExit, onComplete }) => {
         {
            const a = rand(5, 15);
            const b = rand(5, 15);
-           const c = rand(10, 50);
+           const c = rand(10, Math.min(50, a * b));
            qAns = (a * b) - c;
            qText = `${a} × ${b} - ${c}`;
         }
@@ -150,7 +152,9 @@ const MathGame: React.FC<Props> = ({ onExit, onComplete }) => {
   };
 
   const handleSubmit = () => {
-    if (!userAnswer) return;
+    // Ignore input during the 400ms feedback flash: a second Enter used to be
+    // scored again against the same question.
+    if (!userAnswer || feedback) return;
     const val = parseInt(userAnswer);
     const timeTaken = (Date.now() - questionStartTime) / 1000;
     
@@ -207,11 +211,13 @@ const MathGame: React.FC<Props> = ({ onExit, onComplete }) => {
   };
 
   const handleNumpad = (num: number) => {
+      if (feedback) return;
       sfx.playClick();
       if (userAnswer.length < 5) setUserAnswer(prev => prev + num.toString());
   };
 
   const handleBackspace = () => {
+      if (feedback) return;
       sfx.playClick();
       setUserAnswer(prev => prev.slice(0, -1));
   };
@@ -232,15 +238,28 @@ const MathGame: React.FC<Props> = ({ onExit, onComplete }) => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [gameState, userAnswer, question]);
+  }, [gameState, userAnswer, question, feedback]);
+
+  const resetRun = () => {
+      setTimeLeft(INITIAL_TIME);
+      setScore(0);
+      setLevel(1);
+      setStreak(0);
+      setTotalQuestions(0);
+      setCorrectQuestions(0);
+      setFeedback(null);
+      resetMeasures();
+      generateQuestion(1);
+      setGameState('playing');
+  };
 
   if (gameState === 'finished') {
       const accuracy = totalQuestions > 0 ? Math.round((correctQuestions / totalQuestions) * 100) : 0;
 
-      // Gamification-free construct measure: weighted-correct per real minute,
-      // scaled by accuracy, on a 0-100 scale. Uses wall-clock elapsed so the
-      // clock-extending time bonus can't inflate it.
-      const elapsedMs = finishedAtRef.current > startedAtRef.current ? finishedAtRef.current - startedAtRef.current : 0;
+      // Gamification-free construct measure: weighted-correct per active
+      // minute, scaled by accuracy, on a 0-100 scale. Uses real elapsed play
+      // time so the clock-extending time bonus can't inflate it.
+      const elapsedMs = activeMsRef.current;
       const elapsedMin = elapsedMs > 0 ? elapsedMs / 60000 : INITIAL_TIME / 60;
       const accuracyFrac = totalQuestions > 0 ? correctQuestions / totalQuestions : 0;
       const cognitiveRaw = Math.max(0, Math.min(100, Math.round((correctWeightRef.current / elapsedMin) * accuracyFrac)));
@@ -254,17 +273,7 @@ const MathGame: React.FC<Props> = ({ onExit, onComplete }) => {
                 { label: 'دقت', value: toPersianNum(accuracy) + '%' },
                 { label: 'سطح نهایی', value: toPersianNum(level) },
             ]}
-            onRetry={() => {
-                setTimeLeft(INITIAL_TIME);
-                setScore(0);
-                setLevel(1);
-                setStreak(0);
-                setTotalQuestions(0);
-                setCorrectQuestions(0);
-                resetMeasures();
-                generateQuestion(1);
-                setGameState('playing');
-            }}
+            onRetry={resetRun}
             onComplete={() => onComplete(score, { cognitiveRaw, durationMs: elapsedMs, trialCount: totalQuestions })}
         />
       );
@@ -279,34 +288,26 @@ const MathGame: React.FC<Props> = ({ onExit, onComplete }) => {
             "پاسخ صحیح زمان می‌خرد، پاسخ غلط زمان کم می‌کند.",
             "پاسخ‌های سریع (زیر ۳ ثانیه) امتیاز ۱.۵ برابر دارند."
         ]}
+        keyboardHint="اعداد را تایپ کنید؛ Enter برای ثبت و Backspace برای پاک کردن."
         icon={<Calculator />}
         stats={{ score, timeLeft, level, combo: streak }}
         onExit={onExit}
-        onRestart={() => {
-            setTimeLeft(INITIAL_TIME);
-            setScore(0);
-            setLevel(1);
-            setStreak(0);
-            setTotalQuestions(0);
-            setCorrectQuestions(0);
-            resetMeasures();
-            generateQuestion(1);
-            setGameState('playing');
-        }}
+        onRestart={resetRun}
         gameState={gameState}
         setGameState={setGameState}
         colorTheme="blue"
+        tone="dark"
     >
-        <div className="h-full w-full bg-slate-900 flex flex-col items-center justify-center p-4 relative">
-             <div className="w-full max-w-md mb-8">
-                 <div className="bg-white rounded-3xl p-8 shadow-2xl border-b-8 border-slate-300 flex items-center justify-center min-h-[140px]" dir="ltr">
-                    <span className="text-4xl md:text-6xl font-black text-slate-800 font-mono">
+        <div className="h-full w-full flex flex-col items-center justify-center p-2 relative overflow-y-auto">
+             <div className="w-full max-w-md mb-6">
+                 <div className="bg-slate-800 rounded-3xl p-6 md:p-8 shadow-2xl border-b-8 border-slate-950 flex items-center justify-center min-h-[120px] md:min-h-[140px]" dir="ltr">
+                    <span className="text-4xl md:text-6xl font-black text-white font-mono tabular-nums">
                         {toPersianNum(question.text)}
                     </span>
                  </div>
              </div>
 
-             <div className={`w-full max-w-md h-20 bg-slate-800 rounded-2xl mb-6 flex items-center justify-center border-2 transition-colors ${feedback === 'correct' ? 'border-emerald-500' : feedback === 'wrong' ? 'border-red-500' : 'border-slate-700'}`} dir="ltr">
+             <div className={`w-full max-w-md h-20 bg-slate-900 rounded-2xl mb-6 flex items-center justify-center border-2 transition-colors ${feedback === 'correct' ? 'border-emerald-500' : feedback === 'wrong' ? 'border-red-500' : 'border-slate-700'}`} dir="ltr">
                  <span className={`text-4xl font-mono font-bold tracking-widest ${feedback === 'correct' ? 'text-emerald-400' : feedback === 'wrong' ? 'text-red-400' : 'text-white'}`}>
                      {userAnswer ? toPersianNum(userAnswer) : '_'}
                  </span>
