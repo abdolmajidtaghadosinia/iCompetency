@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo, Suspense } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { Stars, Float, Text } from '@react-three/drei';
+import { Stars, Float } from '@react-three/drei';
 import * as THREE from 'three';
 import { Compass } from 'lucide-react';
 import GameShell, { GameState } from './GameShell';
@@ -57,6 +57,38 @@ function WebGLFallback({ onExit }: { onExit: () => void }) {
   );
 }
 
+
+// --- LabelSprite ---
+// Compass letters drawn to a canvas texture. drei's <Text> fetches font data
+// from a CDN at runtime when no font file is given; offline (or wherever that
+// CDN is blocked) the fetch fails and suspends the whole scene, leaving the
+// compass blank and the game unplayable.
+function LabelSprite({ text, color, position, scale }: { text: string; color: string; position: [number, number, number]; scale: number }) {
+  const texture = useMemo(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 128;
+    canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.fillStyle = color;
+      ctx.font = 'bold 96px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, 64, 70);
+    }
+    const t = new THREE.CanvasTexture(canvas);
+    t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  }, [text, color]);
+
+  useEffect(() => () => texture.dispose(), [texture]);
+
+  return (
+    <sprite position={position} scale={[scale, scale, scale]}>
+      <spriteMaterial map={texture} transparent depthWrite={false} />
+    </sprite>
+  );
+}
 
 // --- CompassRose3D Component ---
 interface CompassRose3DProps {
@@ -169,50 +201,10 @@ function CompassRose3D({ rotation, combo, feedback }: CompassRose3DProps) {
         </mesh>
 
         {/* Labels */}
-        <Text
-          position={[0, 0.2, -2.6]}
-          fontSize={0.4}
-          color={northColor}
-          anchorX="center"
-          anchorY="middle"
-          font={undefined}
-        >
-          N
-        </Text>
-        <Text
-          position={[2.6, 0.2, 0]}
-          fontSize={0.3}
-          color="#94a3b8"
-          anchorX="center"
-          anchorY="middle"
-          rotation={[0, -Math.PI / 2, 0]}
-          font={undefined}
-        >
-          E
-        </Text>
-        <Text
-          position={[0, 0.2, 2.6]}
-          fontSize={0.3}
-          color="#94a3b8"
-          anchorX="center"
-          anchorY="middle"
-          rotation={[0, Math.PI, 0]}
-          font={undefined}
-        >
-          S
-        </Text>
-        <Text
-          position={[-2.6, 0.2, 0]}
-          fontSize={0.3}
-          color="#94a3b8"
-          anchorX="center"
-          anchorY="middle"
-          rotation={[0, Math.PI / 2, 0]}
-          font={undefined}
-        >
-          W
-        </Text>
-
+        <LabelSprite text="N" color={northColor} position={[0, 0.25, -2.6]} scale={0.6} />
+        <LabelSprite text="E" color="#94a3b8" position={[2.6, 0.25, 0]} scale={0.45} />
+        <LabelSprite text="S" color="#94a3b8" position={[0, 0.25, 2.6]} scale={0.45} />
+        <LabelSprite text="W" color="#94a3b8" position={[-2.6, 0.25, 0]} scale={0.45} />
 
         {/* Center Platform */}
         <mesh position={[0, -0.3, 0]}>
@@ -358,102 +350,62 @@ function QualityFrameCounter({ onFrame }: { onFrame: () => void }) {
   return null;
 }
 
-// --- Direction Buttons Overlay ---
-interface DirectionButtonsProps {
-  onSelect: (dir: ScreenDir) => void;
-  disabled: boolean;
-  targetDir: CardinalDir;
-}
+// --- Prompt, tutorial and D-pad ---
+// These sit above and below the canvas in normal flow rather than on top of
+// it: as overlays, the "up" button covered the N label and the tutorial card
+// covered half the compass on phones.
+const TARGET_LABELS: Record<CardinalDir, string> = { N: 'شمال', E: 'شرق', S: 'جنوب', W: 'غرب' };
 
-function DirectionButtons({ onSelect, disabled, targetDir }: DirectionButtonsProps) {
-  // These are SCREEN directions. They used to be labelled North/East/South/
-  // West, so once the compass rotated the "North" button was usually the
-  // wrong answer for North — the labels contradicted the task itself.
-  const dirLabels: Record<ScreenDir, { label: string; arrow: string }> = {
-    UP: { label: 'بالا', arrow: '↑' },
-    RIGHT: { label: 'راست', arrow: '→' },
-    DOWN: { label: 'پایین', arrow: '↓' },
-    LEFT: { label: 'چپ', arrow: '←' },
-  };
+// These are SCREEN directions. They used to be labelled North/East/South/
+// West, so once the compass rotated the "North" button was usually the wrong
+// answer for North — the labels contradicted the task itself.
+const DIR_LABELS: Record<ScreenDir, { label: string; arrow: string }> = {
+  UP: { label: 'بالا', arrow: '↑' },
+  RIGHT: { label: 'راست', arrow: '→' },
+  DOWN: { label: 'پایین', arrow: '↓' },
+  LEFT: { label: 'چپ', arrow: '←' },
+};
 
-  const targetLabels: Record<CardinalDir, string> = {
-    N: 'شمال',
-    E: 'شرق',
-    S: 'جنوب',
-    W: 'غرب',
-  };
-
-  const buttonBase =
-    'absolute flex flex-col items-center justify-center rounded-2xl font-bold text-white transition-all duration-200 active:scale-90 select-none touch-manipulation shadow-lg border';
-
+function TargetPrompt({ targetDir }: { targetDir: CardinalDir }) {
   return (
-    <div className="absolute inset-0 pointer-events-none z-20">
-      {/* Target indicator */}
-      <div className="absolute top-4 left-1/2 -translate-x-1/2 pointer-events-none">
-        <div className="bg-slate-900/80 backdrop-blur-sm border border-cyan-500/50 px-6 py-3 rounded-2xl text-center">
-          <div className="text-[10px] text-cyan-300 font-bold tracking-widest mb-1">
-            این جهت روی صفحه کدام طرف است؟
-          </div>
-          <div className="text-2xl font-black text-white">{targetLabels[targetDir]} <span className="text-cyan-300 text-base" dir="ltr">({targetDir})</span></div>
-        </div>
+    <div className="bg-slate-900/80 border border-cyan-500/50 px-6 py-2.5 rounded-2xl text-center">
+      <div className="text-[10px] text-cyan-300 font-bold tracking-widest mb-0.5">این جهت روی صفحه کدام طرف است؟</div>
+      <div className="text-xl md:text-2xl font-black text-white">
+        {TARGET_LABELS[targetDir]} <span className="text-cyan-300 text-base" dir="ltr">({targetDir})</span>
       </div>
-
-
-      {/* UP Button */}
-      <button
-        className={`${buttonBase} top-[12%] left-1/2 -translate-x-1/2 w-20 h-20 md:w-24 md:h-24 pointer-events-auto
-          ${disabled ? 'bg-slate-700/50 border-slate-600/30 opacity-50' : 'bg-slate-800/80 hover:bg-cyan-700/80 border-cyan-500/30 hover:border-cyan-400'}`}
-        onClick={() => !disabled && onSelect('UP')}
-        disabled={disabled}
-      >
-        <span className="text-2xl md:text-3xl">{dirLabels.UP.arrow}</span>
-        <span className="text-[10px] md:text-xs mt-1">{dirLabels.UP.label}</span>
-      </button>
-
-      {/* RIGHT Button */}
-      <button
-        className={`${buttonBase} top-1/2 -translate-y-1/2 right-[8%] w-20 h-20 md:w-24 md:h-24 pointer-events-auto
-          ${disabled ? 'bg-slate-700/50 border-slate-600/30 opacity-50' : 'bg-slate-800/80 hover:bg-cyan-700/80 border-cyan-500/30 hover:border-cyan-400'}`}
-        onClick={() => !disabled && onSelect('RIGHT')}
-        disabled={disabled}
-      >
-        <span className="text-2xl md:text-3xl">{dirLabels.RIGHT.arrow}</span>
-        <span className="text-[10px] md:text-xs mt-1">{dirLabels.RIGHT.label}</span>
-      </button>
-
-      {/* DOWN Button */}
-      <button
-        className={`${buttonBase} bottom-[12%] left-1/2 -translate-x-1/2 w-20 h-20 md:w-24 md:h-24 pointer-events-auto
-          ${disabled ? 'bg-slate-700/50 border-slate-600/30 opacity-50' : 'bg-slate-800/80 hover:bg-cyan-700/80 border-cyan-500/30 hover:border-cyan-400'}`}
-        onClick={() => !disabled && onSelect('DOWN')}
-        disabled={disabled}
-      >
-        <span className="text-2xl md:text-3xl">{dirLabels.DOWN.arrow}</span>
-        <span className="text-[10px] md:text-xs mt-1">{dirLabels.DOWN.label}</span>
-      </button>
-
-      {/* LEFT Button */}
-      <button
-        className={`${buttonBase} top-1/2 -translate-y-1/2 left-[8%] w-20 h-20 md:w-24 md:h-24 pointer-events-auto
-          ${disabled ? 'bg-slate-700/50 border-slate-600/30 opacity-50' : 'bg-slate-800/80 hover:bg-cyan-700/80 border-cyan-500/30 hover:border-cyan-400'}`}
-        onClick={() => !disabled && onSelect('LEFT')}
-        disabled={disabled}
-      >
-        <span className="text-2xl md:text-3xl">{dirLabels.LEFT.arrow}</span>
-        <span className="text-[10px] md:text-xs mt-1">{dirLabels.LEFT.label}</span>
-      </button>
     </div>
   );
 }
 
+function DPad({ onSelect, disabled }: { onSelect: (dir: ScreenDir) => void; disabled: boolean }) {
+  const btn = (dir: ScreenDir) => (
+    <button
+      key={dir}
+      className={`flex flex-col items-center justify-center w-16 h-14 md:w-20 md:h-16 rounded-2xl font-bold text-white transition-all duration-200 active:scale-90 select-none touch-manipulation shadow-lg border
+        ${disabled ? 'bg-slate-700/50 border-slate-600/30 opacity-50' : 'bg-slate-800/85 hover:bg-cyan-700/80 border-cyan-500/30 hover:border-cyan-400'}`}
+      onClick={() => !disabled && onSelect(dir)}
+      disabled={disabled}
+      aria-label={DIR_LABELS[dir].label}
+    >
+      <span className="text-xl leading-none">{DIR_LABELS[dir].arrow}</span>
+      <span className="text-[10px] md:text-xs mt-1">{DIR_LABELS[dir].label}</span>
+    </button>
+  );
 
-// --- Tutorial Overlay ---
-interface TutorialOverlayProps {
-  step: number;
-  onSkip: () => void;
+  // Laid out LTR like arrow keys, so ← is on the left.
+  return (
+    <div className="grid grid-cols-3 gap-2" dir="ltr">
+      <span />
+      {btn('UP')}
+      <span />
+      {btn('LEFT')}
+      {btn('DOWN')}
+      {btn('RIGHT')}
+    </div>
+  );
 }
 
-function TutorialOverlay({ step, onSkip }: TutorialOverlayProps) {
+function TutorialCard({ step, onSkip }: { step: number; onSkip: () => void }) {
   const messages = [
     'قطب‌نما نچرخیده و N بالای صفحه است. دکمه «بالا» (↑) را بزنید.',
     'قطب‌نما ۹۰° چرخید! حرف N اکنون سمت راست است. شمال روی صفحه کدام طرف است؟',
@@ -461,19 +413,14 @@ function TutorialOverlay({ step, onSkip }: TutorialOverlayProps) {
   ];
 
   return (
-    <div className="absolute bottom-[25%] left-1/2 -translate-x-1/2 z-30 pointer-events-auto">
-      <div className="bg-cyan-900/90 backdrop-blur-sm border border-cyan-400/50 rounded-2xl px-6 py-4 max-w-sm text-center shadow-2xl">
-        <div className="text-[10px] text-cyan-300 font-bold uppercase tracking-widest mb-2">
-          آموزش — مرحله {toPersianNum(step + 1)} از ۳
-        </div>
-        <p className="text-white font-bold text-sm leading-relaxed">{messages[step]}</p>
-        <button
-          onClick={onSkip}
-          className="mt-3 text-cyan-300 hover:text-white text-xs font-bold transition-colors"
-        >
-          رد کردن آموزش
-        </button>
+    <div className="w-full max-w-md bg-cyan-900/80 border border-cyan-400/50 rounded-2xl px-4 py-2.5 text-center shadow-xl">
+      <div className="text-[10px] text-cyan-300 font-bold tracking-widest mb-1">
+        آموزش — مرحله {toPersianNum(step + 1)} از ۳
       </div>
+      <p className="text-white font-bold text-xs md:text-sm leading-relaxed">{messages[step]}</p>
+      <button onClick={onSkip} className="mt-1.5 text-cyan-300 hover:text-white text-[11px] font-bold transition-colors">
+        رد کردن آموزش
+      </button>
     </div>
   );
 }
@@ -757,13 +704,19 @@ const OrientationGame3D: React.FC<Props> = ({ onExit, onComplete }) => {
       colorTheme="emerald"
       tone="dark"
     >
-      <div className={`h-full w-full relative overflow-hidden rounded-3xl transition-all duration-200 ${feedbackBg}`}>
+      <div className={`h-full w-full flex flex-col overflow-hidden rounded-3xl bg-[#020617] transition-all duration-200 ${feedbackBg}`}>
+        <div className="shrink-0 flex flex-col items-center gap-2 p-3">
+          <TargetPrompt targetDir={round.targetDir} />
+          {phase === 'tutorial' && <TutorialCard step={tutorialStep} onSkip={skipTutorial} />}
+        </div>
+
         {/* 3D Canvas */}
+        <div className="flex-1 min-h-0 relative">
         <Canvas
           camera={{ position: [0, 5, 6], fov: 45, near: 0.1, far: 100 }}
           frameloop={gameState === 'playing' ? 'always' : 'demand'}
           dpr={[1, quality > 0.7 ? 2 : 1.5]}
-          style={{ background: '#020617' }}
+          style={{ background: '#020617', position: 'absolute', inset: 0 }}
         >
           <ambientLight intensity={0.3} />
           <pointLight position={[5, 5, 5]} intensity={0.8} color="#06b6d4" />
@@ -781,22 +734,11 @@ const OrientationGame3D: React.FC<Props> = ({ onExit, onComplete }) => {
           <CameraShaker shake={shakeIntensity} />
           <QualityFrameCounter onFrame={measure} />
         </Canvas>
+        </div>
 
-
-        {/* Direction Buttons Overlay */}
-        {gameState === 'playing' && (
-          <DirectionButtons
-            onSelect={handleInput}
-            disabled={feedback !== null}
-            targetDir={round.targetDir}
-          />
-        )}
-
-        {/* Tutorial Overlay */}
-        {gameState === 'playing' && phase === 'tutorial' && (
-          <TutorialOverlay step={tutorialStep} onSkip={skipTutorial} />
-        )}
-
+        <div className="shrink-0 flex justify-center p-3">
+          <DPad onSelect={handleInput} disabled={feedback !== null || gameState !== 'playing'} />
+        </div>
       </div>
     </GameShell>
   );
