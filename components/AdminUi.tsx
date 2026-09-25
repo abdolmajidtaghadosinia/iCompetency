@@ -3,6 +3,7 @@
 // indigo accents, every surface with its dark: counterpart.
 
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Check, Copy, Loader2, X } from 'lucide-react';
 import { toPersianNum } from '../utils';
 import type { OrgMemberStatus, OrgRole } from '../types';
@@ -125,7 +126,9 @@ export const Modal: React.FC<{ title: string; onClose: () => void; children: Rea
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
-  return (
+  // Portal to <body>: the admin pages animate with a transform, which would
+  // otherwise make this fixed overlay position (and clip) relative to them.
+  return createPortal(
     <div className="fixed inset-0 z-[80] bg-slate-900/50 backdrop-blur-sm flex p-4 overflow-y-auto animate-fade-in" onMouseDown={onClose}>
       <div
         role="dialog"
@@ -143,7 +146,8 @@ export const Modal: React.FC<{ title: string; onClose: () => void; children: Rea
         <div className="p-5">{children}</div>
         {footer && <div className="p-5 pt-0 flex flex-wrap gap-3 justify-end">{footer}</div>}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 };
 
