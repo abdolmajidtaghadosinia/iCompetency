@@ -336,14 +336,17 @@ const SjtGame: React.FC<Props> = ({ onExit, onComplete }) => {
               })()}
             </div>
 
-            {/* Footer */}
-            <div className="p-4 border-t border-white/5 bg-slate-900/50 backdrop-blur-md flex justify-end items-center">
+            {/* Footer: only once there is a next step, so the invisible button
+                doesn't eat vertical space on phones. */}
+            {answered && (
+            <div className="p-4 border-t border-white/5 bg-slate-900/50 backdrop-blur-md flex justify-end items-center animate-fade-in">
               <button onClick={handleNext} disabled={!answered}
-                className={`flex items-center gap-2 px-8 py-3 rounded-xl font-bold transition-all ${answered ? 'bg-teal-600 hover:bg-teal-500 text-white shadow-lg' : 'bg-slate-800 text-slate-500 opacity-0 pointer-events-none'}`}>
+                className="flex items-center gap-2 px-8 py-3 rounded-xl font-bold transition-all bg-teal-600 hover:bg-teal-500 text-white shadow-lg">
                 {index < data.scenarios.length - 1 ? 'موقعیت بعدی' : 'مشاهده کارنامه'}
                 <ChevronLeft size={18} />
               </button>
             </div>
+            )}
           </>
         )}
       </div>
