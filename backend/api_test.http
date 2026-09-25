@@ -293,3 +293,114 @@ Content-Type: application/json
 ### Logout
 POST {{baseUrl}}/auth/logout
 Authorization: Bearer {{token}}
+
+### ===== Organizations (docs/organizations.md) =====
+# Platform admin: grant once from the server shell:
+#   php backend/manage.php grant-admin you@example.com
+@orgId = 1
+@memberId = 1
+@inviteToken = PASTE_INVITE_TOKEN_HERE
+
+### List organizations (platform admin)
+GET {{baseUrl}}/admin/orgs
+Authorization: Bearer {{token}}
+
+### Create organization + invite its first admin (platform admin)
+POST {{baseUrl}}/admin/orgs
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "شرکت نمونه",
+  "industry": "فناوری",
+  "seatLimit": 200,
+  "adminEmail": "hr@example.com",
+  "adminName": "مدیر منابع انسانی"
+}
+
+### Suspend / edit organization (platform admin)
+PUT {{baseUrl}}/admin/orgs/{{orgId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "status": "suspended" }
+
+### Organizations I can open (admin/manager)
+GET {{baseUrl}}/orgs
+Authorization: Bearer {{token}}
+
+### Organization workspace: units, seats, my role
+GET {{baseUrl}}/orgs/{{orgId}}
+Authorization: Bearer {{token}}
+
+### Settings: required assessments + due date (org admin)
+PUT {{baseUrl}}/orgs/{{orgId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "requiredAssessments": ["MINIGAME_MEMORY", "MINIGAME_MATH", "MINIGAME_BIGFIVE"], "dueDate": "2026-12-31" }
+
+### Workforce dashboard (optionally ?unitId=)
+GET {{baseUrl}}/orgs/{{orgId}}/dashboard
+Authorization: Bearer {{token}}
+
+### Create unit (org admin)
+POST {{baseUrl}}/orgs/{{orgId}}/units
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "name": "فناوری اطلاعات", "parentId": null }
+
+### Members table
+GET {{baseUrl}}/orgs/{{orgId}}/members
+Authorization: Bearer {{token}}
+
+### Add one member (returns a one-time invite token)
+POST {{baseUrl}}/orgs/{{orgId}}/members
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "fullName": "علی رضایی", "email": "ali@example.com", "jobTitle": "کارشناس", "orgRole": "member" }
+
+### Bulk import — dry run first, then again without dryRun
+POST {{baseUrl}}/orgs/{{orgId}}/members/import
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "dryRun": true,
+  "createUnits": true,
+  "rows": [
+    { "fullName": "سارا احمدی", "email": "sara@example.com", "unit": "فناوری اطلاعات / نرم‌افزار", "jobTitle": "برنامه‌نویس", "employeeCode": "1001" },
+    { "fullName": "رضا کریمی", "email": "reza@example.com", "unit": "فروش", "orgRole": "manager" }
+  ]
+}
+
+### Member report
+GET {{baseUrl}}/orgs/{{orgId}}/members/{{memberId}}
+Authorization: Bearer {{token}}
+
+### New invite link for a member
+POST {{baseUrl}}/orgs/{{orgId}}/members/{{memberId}}/invite
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{}
+
+### Audit log (org admin)
+GET {{baseUrl}}/orgs/{{orgId}}/audit
+Authorization: Bearer {{token}}
+
+### Invite lookup (public)
+GET {{baseUrl}}/invites/lookup?token={{inviteToken}}
+
+### Accept invite (signed in as the invitee; consent is required)
+POST {{baseUrl}}/invites/accept
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "token": "{{inviteToken}}", "consent": true }
+
+### Leave organization (member withdraws consent)
+POST {{baseUrl}}/orgs/{{orgId}}/leave
+Authorization: Bearer {{token}}

@@ -4,6 +4,8 @@ return [
   'app'=>[
     'timezone'=>'Asia/Tehran','debug'=>false,'token_ttl_days'=>30,'token_hash_secret'=>'CHANGE_ME_TO_64_RANDOM_CHARS',
     'password_reset_ttl_minutes'=>30,'password_reset_url'=>'https://example.com/reset-password','mail_from'=>'no-reply@example.com','debug_return_reset_token'=>false,
+    // Organization invites: the join page link emailed to invitees (leave '' to only copy links from the admin panel).
+    'invite_url'=>'https://example.com/join','invite_ttl_days'=>14,
     'cors_allowed_origins'=>['http://localhost:5173','https://example.com'],
   ],
   'ai'=>['api_key'=>'PUT_AVALAI_API_KEY_HERE','base_url'=>'https://api.avalai.ir/v1','model'=>'gemini-2.5-flash-lite','timeout_seconds'=>25],

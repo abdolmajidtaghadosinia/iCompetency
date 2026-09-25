@@ -229,5 +229,34 @@ foreach ([[70,'بسیار بالا'],[60,'بالاتر از میانگین'],[50
 foreach ([[80,'قوی'],[65,'خوب'],[45,'متوسط'],[30,'نیازمند توسعه']] as [$s,$l])
     ok("competency label $s", get_competency_label($s) === $l);
 
+// Organization assessment catalog vs the frontend inventory --------------------
+section('Organizations: assessment catalog matches utils/assessmentInventory.ts');
+require_once APP_ROOT . '/logic/org.php';
+$inventory = (string)file_get_contents(dirname(APP_ROOT) . '/utils/assessmentInventory.ts');
+preg_match_all('/view:\s*AppView\.([A-Z0-9_]+),\s*code:\s*\'([^\']+)\'/', $inventory, $inv, PREG_SET_ORDER);
+$feCatalog = [];
+foreach ($inv as $row) $feCatalog[$row[1]] = $row[2];
+$beCatalog = array_map(static fn($d) => $d['code'], org_assessment_catalog());
+ok('frontend inventory parsed', count($feCatalog) > 0);
+ok('same assessments on both sides', array_keys($feCatalog) === array_keys($beCatalog), implode(',', array_keys($feCatalog)) . ' vs ' . implode(',', array_keys($beCatalog)));
+foreach ($beCatalog as $view => $code) ok("$view code matches ($code)", ($feCatalog[$view] ?? null) === $code);
+foreach (org_assessment_catalog() as $view => $def) {
+    if ($def['category'] === 'cognitive') ok("$view raw keys exist", count(array_diff($def['rawKeys'], cognitive_raw_keys())) === 0);
+}
+$state = initial_profile_state();
+ok('fresh profile has no completed assessment', count(array_filter(array_keys(org_assessment_catalog()), static fn($v) => org_assessment_done($v, $state, []))) === 0);
+$state['cognitive_raw']['A9b_Paired'] = 70;
+ok('any memory sub-test counts as the battery done', org_assessment_done('MINIGAME_MEMORY', $state, []));
+ok('methodology done via results', org_assessment_done('MINIGAME_SJT', $state, ['sjt' => ['score' => 60]]));
+ok('sanitize drops unknown and dedupes, keeps catalog order', org_sanitize_required(['MINIGAME_SJT', 'NOPE', 'MINIGAME_MATH', 'MINIGAME_SJT']) === ['MINIGAME_MATH', 'MINIGAME_SJT']);
+foreach (org_cognitive_tests() as $nk => $t) ok("org cognitive test $nk has a norm", isset(scoring_default_norms()[$nk]) && in_array($t['raw'], cognitive_raw_keys(), true));
+$units = [1 => ['id' => 1, 'parent_id' => null, 'name' => 'الف'], 2 => ['id' => 2, 'parent_id' => 1, 'name' => 'ب'], 3 => ['id' => 3, 'parent_id' => 2, 'name' => 'ج'], 4 => ['id' => 4, 'parent_id' => null, 'name' => 'د']];
+$desc = org_unit_descendants($units, 1);
+sort($desc);
+ok('unit subtree', $desc === [1, 2, 3]);
+ok('unit path', org_unit_paths($units)[3] === 'الف / ب / ج');
+$cyc = [1 => ['id' => 1, 'parent_id' => 2, 'name' => 'x'], 2 => ['id' => 2, 'parent_id' => 1, 'name' => 'y']];
+ok('unit paths survive a cycle', is_string(org_unit_paths($cyc)[1]));
+
 echo "\n" . ($FAILS === 0 ? "ALL CHECKS PASSED\n" : "$FAILS CHECK(S) FAILED\n");
 exit($FAILS === 0 ? 0 : 1);
