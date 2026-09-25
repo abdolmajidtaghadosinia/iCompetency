@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   Rocket, ShieldAlert, Users, HeartHandshake, Eye,
   Hexagon, X, Play, Database, HardHat,
@@ -10,6 +10,8 @@ import { toPersianNum } from '../utils';
 import { median } from '../utils/scoring';
 import { sfx } from '../services/audioService';
 import { BigFiveValidityIndicators } from '../types';
+import GameShell, { GameState } from './GameShell';
+import ResultOverlay from './ResultOverlay';
 
 interface Props {
   onExit: () => void;
@@ -466,10 +468,6 @@ function HandshakeIcon(props: any) {
   return <HeartHandshake {...props} />
 }
 
-const XCircleIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>
-);
-
 const RadarChart = ({ scores }: { scores: Record<string, number> }) => {
   const size = 300;
   const center = size / 2;
@@ -553,7 +551,22 @@ function shuffleArray<T>(array: T[]): T[] {
 }
 
 const BigFiveGame: React.FC<Props> = ({ onExit, onComplete }) => {
-  const [gameState, setGameState] = useState<'intro' | 'playing' | 'results'>('intro');
+  const [gameState, setGameState] = useState<GameState>('intro');
+  // Brief input lock after each answer: a fast double-tap used to answer the
+  // next item too (with a near-zero response time that tripped the
+  // "too fast" validity flag).
+  const lockedRef = useRef(false);
+  const [reportId] = useState(() => Date.now().toString().slice(-6));
+
+  // Item timing starts when the test actually starts (not at mount, while
+  // the intro card is still being read).
+  const startedRef = useRef(false);
+  useEffect(() => {
+    if (gameState === 'playing' && !startedRef.current) {
+      startedRef.current = true;
+      itemStartRef.current = Date.now();
+    }
+  }, [gameState]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [rawScores, setRawScores] = useState<Record<string, number>>({
     Openness: 0, Conscientiousness: 0, Extraversion: 0, Agreeableness: 0, Neuroticism: 0
@@ -611,6 +624,9 @@ const BigFiveGame: React.FC<Props> = ({ onExit, onComplete }) => {
   }, [rawScores]);
 
   const handleChoice = (choice: Choice) => {
+    if (lockedRef.current || gameState !== 'playing') return;
+    lockedRef.current = true;
+    setTimeout(() => { lockedRef.current = false; }, 350);
     sfx.playClick();
     const item = shuffledData[currentIndex];
     const now = Date.now();
@@ -633,7 +649,7 @@ const BigFiveGame: React.FC<Props> = ({ onExit, onComplete }) => {
       setCurrentIndex(prev => prev + 1);
     } else {
       sfx.playWin();
-      setGameState('results');
+      setGameState('finished');
     }
   };
 
@@ -648,34 +664,7 @@ const BigFiveGame: React.FC<Props> = ({ onExit, onComplete }) => {
       return 'text-blue-400 border-blue-500/30 bg-blue-500/10';
   }
 
-  if (gameState === 'intro') {
-    return (
-      <div className="h-full bg-slate-950 text-white flex items-center justify-center p-6 relative overflow-hidden animate-fade-in">
-        <div className="absolute inset-0 z-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10"></div>
-        <div className="relative z-10 max-w-2xl w-full bg-slate-900/90 backdrop-blur-2xl p-8 md:p-12 rounded-[2.5rem] border border-slate-700 shadow-2xl text-center">
-            <div className="w-24 h-24 mx-auto mb-8 bg-gradient-to-tr from-blue-600 to-slate-500 rounded-3xl flex items-center justify-center shadow-lg transform rotate-3">
-                <HardHat size={48} className="text-white" />
-            </div>
-            <h1 className="text-3xl md:text-4xl font-black mb-3 tracking-tighter text-white">اتاق فرماندهی عملیات</h1>
-            <h2 className="text-lg font-bold text-slate-400 mb-8 leading-relaxed">
-              شبیه‌سازی کامل مدیریت صنعتی در ۵ فاز عملیاتی، بحران، تیم، استراتژی و میراث.
-              <br/>
-              <span className="text-xs mt-2 block opacity-70">شامل ۲۵ سناریوی تصمیم‌گیری کلیدی + ۳ مورد کنترل کیفیت پاسخ</span>
-            </h2>
-            <button
-                onClick={() => { sfx.playClick(); itemStartRef.current = Date.now(); setGameState('playing'); }}
-                className="group w-full py-4 bg-blue-600 text-white rounded-2xl font-black text-xl hover:bg-blue-500 transition-all shadow-lg active:scale-95"
-            >
-                <span className="flex items-center justify-center gap-2">
-                    <Play size={24} fill="currentColor" /> شروع شیفت مدیریت
-                </span>
-            </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (gameState === 'results') {
+  if (gameState === 'finished') {
       // Display-only preview of the response-quality verdict; the stored flag
       // is computed server-side from the same raw indicators.
       const v = buildValidity();
@@ -689,8 +678,9 @@ const BigFiveGame: React.FC<Props> = ({ onExit, onComplete }) => {
           : { label: 'کیفیت پاسخ‌دهی: معتبر', cls: 'bg-emerald-500/10 border-emerald-500/40 text-emerald-300' };
 
       return (
-        <div className="h-full bg-slate-950 text-white overflow-y-auto custom-scrollbar p-6 md:p-8 pb-24 md:pb-8 animate-fade-in-up">
-            <div className="max-w-5xl mx-auto">
+        <div className="dark">
+        <ResultOverlay>
+            <div className="max-w-5xl w-full text-white animate-fade-in-up">
                 <div className="flex flex-col md:flex-row justify-between items-end mb-8 border-b border-white/10 pb-6 gap-4">
                     <div>
                         <h2 className="text-3xl font-black text-white mb-2 flex items-center gap-3"><Activity /> کارنامه صلاحیت آزمون شخصیت</h2>
@@ -701,7 +691,7 @@ const BigFiveGame: React.FC<Props> = ({ onExit, onComplete }) => {
                             <ShieldCheck size={14} /> {validityChip.label}
                         </div>
                         <div className="bg-slate-900 px-4 py-2 rounded-xl border border-white/10 text-xs font-mono">
-                             ID: BF-{Date.now().toString().slice(-6)}
+                             ID: BF-{toPersianNum(reportId)}
                         </div>
                     </div>
                 </div>
@@ -740,6 +730,7 @@ const BigFiveGame: React.FC<Props> = ({ onExit, onComplete }) => {
                     </button>
                 </div>
             </div>
+        </ResultOverlay>
         </div>
       );
   }
@@ -747,21 +738,36 @@ const BigFiveGame: React.FC<Props> = ({ onExit, onComplete }) => {
   const progressPercent = ((currentIndex) / shuffledData.length) * 100;
 
   return (
-    <div className="h-full bg-slate-950 text-white flex flex-col relative overflow-hidden font-sans">
-        <div className="absolute top-0 left-0 w-full h-1 bg-slate-900 z-50">
+    <GameShell
+        title="اتاق فرماندهی عملیات"
+        description="شبیه‌سازی کامل مدیریت صنعتی در ۵ فاز: عملیات، بحران، تیم، استراتژی و میراث. ۲۵ سناریوی تصمیم‌گیری + ۳ مورد کنترل کیفیت پاسخ."
+        instructions={[
+            'در هر سناریو، گزینه‌ای را انتخاب کنید که به رفتار واقعی شما نزدیک‌تر است.',
+            'پاسخ درست یا غلط وجود ندارد؛ صادقانه و بدون عجله پاسخ دهید.',
+            'چند سناریو برای سنجش کیفیت پاسخ‌دهی تکرار یا کنترل می‌شوند.',
+        ]}
+        icon={<HardHat />}
+        stats={{ progress: { current: currentIndex + 1, total: shuffledData.length, label: 'سناریو' } }}
+        onExit={onExit}
+        gameState={gameState}
+        setGameState={setGameState}
+        colorTheme="blue"
+        tone="dark"
+    >
+    <div className="h-full w-full text-white flex flex-col relative overflow-y-auto font-sans rounded-3xl">
+        <div className="sticky top-0 left-0 w-full h-1 bg-slate-900 z-20 shrink-0">
             <div className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 shadow-[0_0_15px_rgba(59,130,246,0.8)] transition-all duration-700 ease-out" style={{ width: `${progressPercent}%` }}></div>
         </div>
-        
-        <div className="flex justify-between items-center p-6 md:p-8 relative z-20">
+
+        <div className="flex justify-between items-center p-4 md:p-6 relative z-10">
             <div className={`px-4 py-1.5 rounded-full border text-xs font-bold font-mono tracking-widest uppercase ${getPhaseColor(currentScenario.phase)}`}>
                 {currentScenario.phase}
             </div>
-            <button onClick={onExit} className="text-slate-600 hover:text-white transition-colors bg-white/5 p-2 rounded-full hover:bg-white/10"><XCircleIcon /></button>
         </div>
-        
-        <div className="flex-1 max-w-5xl mx-auto w-full flex flex-col items-center justify-center p-4 md:p-8 relative z-10">
+
+        <div className="flex-1 max-w-5xl mx-auto w-full flex flex-col items-center justify-center p-2 md:p-6 relative z-10">
             {/* Question Card */}
-            <div className="w-full bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-3xl p-8 md:p-10 shadow-2xl mb-6 relative overflow-hidden animate-slide-in-right">
+            <div key={currentIndex} className="w-full bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-3xl p-6 md:p-10 shadow-2xl mb-6 relative overflow-hidden animate-slide-in-right">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 blur-3xl rounded-full"></div>
                 
                 <div className="flex items-start gap-6 relative z-10">
@@ -779,13 +785,13 @@ const BigFiveGame: React.FC<Props> = ({ onExit, onComplete }) => {
             </div>
 
             {/* Choices Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
+            <div key={`c-${currentIndex}`} className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
                 {currentScenario.choices.map((choice, idx) => (
                     <button
                         key={idx}
                         onClick={() => handleChoice(choice)}
                         style={{ animationDelay: `${idx * 100}ms` }}
-                        className="group relative w-full text-right p-6 rounded-2xl bg-slate-900 border border-slate-800 hover:border-blue-500/50 hover:bg-slate-800 hover:shadow-lg hover:shadow-blue-900/10 transition-all duration-200 active:scale-[0.98] animate-fade-in-up"
+                        className="group relative w-full text-right p-5 md:p-6 rounded-2xl bg-slate-900 border border-slate-800 hover:border-blue-500/50 hover:bg-slate-800 hover:shadow-lg hover:shadow-blue-900/10 transition-all duration-200 active:scale-[0.98] animate-fade-in-up"
                     >
                         <div className="absolute left-4 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity text-blue-500">
                              <TrendingUp size={20} className="rotate-90" />
@@ -798,6 +804,7 @@ const BigFiveGame: React.FC<Props> = ({ onExit, onComplete }) => {
             </div>
         </div>
     </div>
+    </GameShell>
   );
 };
 
