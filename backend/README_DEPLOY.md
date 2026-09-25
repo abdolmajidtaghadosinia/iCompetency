@@ -290,12 +290,17 @@ DELETE FROM rate_limits WHERE expires_at IS NOT NULL AND expires_at < NOW();
 جزئیات کامل در `docs/organizations.md`. برای راه‌اندازی:
 
 1. `schema.sql` را دوباره import کنید (idempotent است) تا جدول‌های `platform_admins`، `organizations`، `org_units`، `org_members` و `org_audit_log` ساخته شوند.
-2. با حساب خودتان در سامانه ثبت‌نام کنید، سپس در ترمینال cPanel (یا SSH):
-   ```bash
-   php backend/manage.php grant-admin you@example.com
+2. با حساب خودتان در سامانه ثبت‌نام کنید. سپس در **phpMyAdmin** دیتابیس برنامه را باز کنید، به تب **SQL** بروید و این دستور را با ایمیل خودتان اجرا کنید:
+   ```sql
+   INSERT IGNORE INTO platform_admins (user_id) SELECT id FROM users WHERE email = 'you@example.com';
    ```
-   نقش «مدیر سامانه» فقط از این راه داده می‌شود. پس از ورود دوباره، گزینه «سازمان» در منو ظاهر می‌شود.
-3. در `config.php` در بخش `app`:
+   اگر پیام «1 row inserted» آمد، کار تمام است (اگر «0 rows» آمد، ایمیل را دقیقاً مثل زمان ثبت‌نام و با حروف کوچک بنویسید). یک بار خارج و دوباره وارد شوید تا گزینه «سازمان» در منو ظاهر شود.
+   - فهرست مدیران سامانه: `SELECT u.email FROM platform_admins p JOIN users u ON u.id = p.user_id;`
+   - حذف دسترسی: `DELETE p FROM platform_admins p JOIN users u ON u.id = p.user_id WHERE u.email = 'you@example.com';`
+   - اگر به ترمینال/SSH دسترسی دارید، همین کار با `php backend/manage.php grant-admin you@example.com` هم انجام می‌شود.
+
+   نقش «مدیر سامانه» عمداً از داخل خود برنامه قابل گرفتن نیست؛ فقط کسی که به دیتابیس دسترسی دارد می‌تواند آن را بدهد.
+3. در `config.php` (از File Manager هاست قابل ویرایش است) در بخش `app`:
    - `invite_url`: آدرس صفحه پیوستن روی دامنه شما، مثلاً `https://icompetency.ir/join` (برای ارسال ایمیل دعوت؛ اگر خالی باشد لینک‌ها فقط در پنل نمایش داده می‌شوند).
    - `invite_ttl_days`: مدت اعتبار لینک دعوت (پیش‌فرض ۱۴ روز).
    - `mail_from`: فرستنده ایمیل‌ها (همان تنظیم بازیابی رمز).

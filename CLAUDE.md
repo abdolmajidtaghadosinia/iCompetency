@@ -14,7 +14,7 @@ Product and business context lives in `docs/PRD.md` and `docs/BRD.md` (Persian).
 ## Commands
 
 - `npm run dev` — Vite dev server; it proxies `/backend` to a local PHP API (`php -S 127.0.0.1:8000 -t backend backend/index.php`, override with `API_PROXY_TARGET`) so the app runs end to end
-- `php backend/manage.php grant-admin <email>` — make a registered account a platform admin (the only way to get that role; also `revoke-admin`, `list-admins`)
+- Platform admin (the only way to get that role): on shared hosting run `INSERT IGNORE INTO platform_admins (user_id) SELECT id FROM users WHERE email='<email>';` in phpMyAdmin; with a shell, `php backend/manage.php grant-admin <email>` (also `revoke-admin`, `list-admins`). The production target is plain PHP + phpMyAdmin hosting with no shell, so never make a setup step shell-only.
 - `npm run build` — `tsc --noEmit` then production build
 - `npm run preview` — preview a production build
 - `npm test` — Vitest unit tests

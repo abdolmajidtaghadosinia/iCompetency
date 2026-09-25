@@ -15,12 +15,13 @@
 | مدیر واحد (`manager`) | مدیران میانی | فقط‌خواندنی: داشبورد، فهرست افراد و گزارش فردی **فقط برای واحد خودش و زیرواحدهایش** (اگر واحدی نداشته باشد، کل سازمان) |
 | کارمند (`member`) | کارکنان | فقط آزمون دادن و دیدن نتایج خودش |
 
-- مدیر سامانه فقط از خط فرمان سرور تعیین می‌شود (هیچ مسیر وبی برای گرفتن این نقش وجود ندارد):
-  ```bash
-  php backend/manage.php grant-admin you@example.com   # حساب باید قبلاً ثبت‌نام کرده باشد
-  php backend/manage.php list-admins
-  php backend/manage.php revoke-admin you@example.com
+- مدیر سامانه از داخل برنامه قابل گرفتن نیست؛ فقط کسی که به دیتابیس دسترسی دارد آن را می‌دهد. روی هاست اشتراکی از تب **SQL** در phpMyAdmin (حساب باید قبلاً ثبت‌نام کرده باشد):
+  ```sql
+  INSERT IGNORE INTO platform_admins (user_id) SELECT id FROM users WHERE email = 'you@example.com';
+  SELECT u.email FROM platform_admins p JOIN users u ON u.id = p.user_id;                        -- فهرست
+  DELETE p FROM platform_admins p JOIN users u ON u.id = p.user_id WHERE u.email = 'you@example.com'; -- حذف
   ```
+  با دسترسی ترمینال، معادل آن `php backend/manage.php grant-admin|list-admins|revoke-admin` است.
 - مدیران سازمان «اپراتور» هستند: ظرفیت مصرف نمی‌کنند و در آمار نیروی انسانی شمرده نمی‌شوند.
 - هر سازمان همیشه حداقل یک مدیر فعال دارد؛ حذف، غیرفعال‌سازی، تغییر نقش یا خروجِ آخرین مدیر رد می‌شود (`LAST_ADMIN`).
 
