@@ -1,0 +1,31 @@
+name: Deploy package
+
+# Builds the ready-to-upload zip for shared PHP hosting (no Node needed on
+# the host). Download it from the run's "Artifacts" section on GitHub.
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm test
+
+      - name: Build and package
+        run: scripts/package-deploy.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: icompetency-public_html
+          path: deploy/public_html/
+          include-hidden-files: true
