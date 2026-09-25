@@ -97,6 +97,25 @@ body {
 .animate-fade-in-up { animation: fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
 .animate-scale-in { animation: scaleIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
 
+/* Game feedback: a wrong answer shakes, a new question/case slides in.
+   Both were referenced by the games but never defined, so they were no-ops. */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-6px); }
+  40%, 80% { transform: translateX(6px); }
+}
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(24px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.animate-shake { animation: shake 0.35s ease-in-out; }
+.animate-slide-in-right { animation: slideInRight 0.45s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-shake,
+  .animate-slide-in-right { animation: none; }
+}
+
 /* Sheen sweep used by progress bars (was referenced before it existed). */
 @keyframes shimmer {
   0%   { transform: translateX(-100%); }

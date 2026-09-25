@@ -4,6 +4,7 @@ import { toPersianNum } from '../utils';
 import { getNormMeta, getPerformanceLabel, getTScoreColor, toTScore } from '../utils/scoring';
 import { Trophy, TrendingUp, Activity, CheckCircle2, RotateCcw } from 'lucide-react';
 import { sfx } from '../services/audioService';
+import ResultOverlay from './ResultOverlay';
 
 interface Metric {
     label: string;
@@ -71,7 +72,7 @@ const GameResultCard: React.FC<Props> = ({ title, rawScore, scoreKey, metrics, o
     const offset = circumference - Math.max(0, Math.min(1, gaugeFraction)) * circumference;
 
     return (
-        <div className="h-full flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 animate-fade-in">
+        <ResultOverlay>
             <div className="bg-white dark:bg-slate-900 rounded-[2rem] shadow-2xl overflow-hidden max-w-md w-full animate-scale-in border border-slate-200 dark:border-slate-700">
                 {/* Header */}
                 <div className="bg-slate-50 dark:bg-slate-800 p-6 text-center border-b border-slate-100 dark:border-slate-700">
@@ -150,7 +151,7 @@ const GameResultCard: React.FC<Props> = ({ title, rawScore, scoreKey, metrics, o
                     </div>
                 </div>
             </div>
-        </div>
+        </ResultOverlay>
     );
 };
 

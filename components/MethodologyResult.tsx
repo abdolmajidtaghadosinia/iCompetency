@@ -1,7 +1,9 @@
 
 import React, { useEffect, useState } from 'react';
 import { toPersianNum } from '../utils';
-import { CheckCircle2, RotateCcw, TrendingUp, AlertTriangle, Sparkles } from 'lucide-react';
+import { CheckCircle2, RotateCcw, TrendingUp, AlertTriangle, Sparkles, ArrowRight } from 'lucide-react';
+import { sfx } from '../services/audioService';
+import ResultOverlay from './ResultOverlay';
 
 export interface RubricDimension {
   label: string;
@@ -18,7 +20,9 @@ interface Props {
   note?: string;
   onRetry?: () => void;
   onComplete: () => void;
-  completeLabel?: string;
+  // false for offline/fallback content: the run is shown but never recorded,
+  // so the primary action reads "back" instead of promising to save.
+  recordable?: boolean;
 }
 
 // Shared rubric-style result for the methodology games: an overall gauge plus a
@@ -31,9 +35,14 @@ const levelColor = (s: number) =>
   : 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/15';
 const barColor = (v: number) => (v >= 70 ? 'bg-emerald-500' : v >= 45 ? 'bg-blue-500' : 'bg-amber-500');
 
-const MethodologyResult: React.FC<Props> = ({ title, subtitle, score, dimensions, strength, blindSpot, note, onRetry, onComplete, completeLabel }) => {
+const MethodologyResult: React.FC<Props> = ({ title, subtitle, score, dimensions, strength, blindSpot, note, onRetry, onComplete, recordable = true }) => {
   const clamped = Math.max(0, Math.min(100, Math.round(score)));
   const [shown, setShown] = useState(0);
+
+  // Same completion chime as GameResultCard, once per result screen.
+  useEffect(() => {
+    sfx.playWin();
+  }, []);
 
   useEffect(() => {
     let start = 0;
@@ -51,8 +60,8 @@ const MethodologyResult: React.FC<Props> = ({ title, subtitle, score, dimensions
   const offset = circ - (shown / 100) * circ;
 
   return (
-    <div className="h-full flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 animate-fade-in overflow-y-auto">
-      <div className="bg-white dark:bg-slate-900 rounded-[2rem] shadow-2xl overflow-hidden max-w-md w-full my-auto animate-scale-in border border-slate-200 dark:border-slate-700">
+    <ResultOverlay>
+      <div className="bg-white dark:bg-slate-900 rounded-[2rem] shadow-2xl overflow-hidden max-w-md w-full animate-scale-in border border-slate-200 dark:border-slate-700">
         <div className="bg-slate-50 dark:bg-slate-800 p-6 text-center border-b border-slate-100 dark:border-slate-700">
           <h2 className="text-2xl font-black text-slate-800 dark:text-white mb-1">{title}</h2>
           <p className="text-slate-500 dark:text-slate-400 text-sm font-bold">{subtitle ?? 'کارنامه مهارتی'}</p>
@@ -104,6 +113,12 @@ const MethodologyResult: React.FC<Props> = ({ title, subtitle, score, dimensions
             )}
           </div>
 
+          {!recordable && (
+            <div className="w-full mb-4 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 text-amber-700 dark:text-amber-300 px-4 py-2 rounded-xl text-xs font-bold text-center">
+              نسخه آفلاین — این اجرا در کارنامه ثبت نمی‌شود.
+            </div>
+          )}
+
           <div className="flex gap-3 w-full">
             {onRetry && (
               <button onClick={onRetry} className="flex-1 py-3 rounded-xl font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors flex items-center justify-center gap-2">
@@ -111,12 +126,12 @@ const MethodologyResult: React.FC<Props> = ({ title, subtitle, score, dimensions
               </button>
             )}
             <button onClick={onComplete} className="flex-[2] py-3 rounded-xl font-bold text-white bg-indigo-600 hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200 dark:shadow-none flex items-center justify-center gap-2">
-              <CheckCircle2 size={18} /> {completeLabel ?? 'ثبت نتیجه'}
+              {recordable ? <><CheckCircle2 size={18} /> ثبت نتیجه</> : <><ArrowRight size={18} /> بازگشت</>}
             </button>
           </div>
         </div>
       </div>
-    </div>
+    </ResultOverlay>
   );
 };
 
