@@ -120,6 +120,13 @@ These two are independent copies with no shared source of truth. Keep them ident
 `POST /game/complete` calls `require_allowed()` against this exact list and rejects (422) anything
 missing from it, even if every other step above was done correctly.
 
+## 8b. If organizations should be able to require it
+
+Add the view to `org_assessment_catalog()` in `backend/logic/org.php` **and** to `ASSESSMENTS` in
+`utils/assessmentInventory.ts` (same `code`). The org dashboard, member progress and the
+"assigned by your organization" card all read from these; `php backend/validate_scoring.php`
+fails if the two lists drift. See `docs/organizations.md`.
+
 ## 9. Validate and verify
 
 ```bash

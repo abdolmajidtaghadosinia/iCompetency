@@ -285,6 +285,21 @@ DELETE FROM password_resets WHERE expires_at < NOW() OR used_at IS NOT NULL;
 DELETE FROM rate_limits WHERE expires_at IS NOT NULL AND expires_at < NOW();
 ```
 
+## سازمان‌ها و پنل مدیریت سازمانی
+
+جزئیات کامل در `docs/organizations.md`. برای راه‌اندازی:
+
+1. `schema.sql` را دوباره import کنید (idempotent است) تا جدول‌های `platform_admins`، `organizations`، `org_units`، `org_members` و `org_audit_log` ساخته شوند.
+2. با حساب خودتان در سامانه ثبت‌نام کنید، سپس در ترمینال cPanel (یا SSH):
+   ```bash
+   php backend/manage.php grant-admin you@example.com
+   ```
+   نقش «مدیر سامانه» فقط از این راه داده می‌شود. پس از ورود دوباره، گزینه «سازمان» در منو ظاهر می‌شود.
+3. در `config.php` در بخش `app`:
+   - `invite_url`: آدرس صفحه پیوستن روی دامنه شما، مثلاً `https://icompetency.ir/join` (برای ارسال ایمیل دعوت؛ اگر خالی باشد لینک‌ها فقط در پنل نمایش داده می‌شوند).
+   - `invite_ttl_days`: مدت اعتبار لینک دعوت (پیش‌فرض ۱۴ روز).
+   - `mail_from`: فرستنده ایمیل‌ها (همان تنظیم بازیابی رمز).
+
 ## کالیبراسیون نرم‌های امتیازدهی
 
 نرم‌های T-Score (میانگین/انحراف معیار هر آزمون) در جدول `scoring_norms` نگهداری می‌شوند و در نصب اولیه با مقادیر آزمایشی (provisional) پر می‌شوند. برای نصب‌های قدیمی که این جدول را ندارند، کافی است همان `schema.sql` را دوباره در phpMyAdmin ایمپورت کنید: تمام `CREATE TABLE`ها به‌صورت `IF NOT EXISTS` و seedها به‌صورت `INSERT IGNORE` هستند، پس ایمپورت مجدد به جدول‌ها و دادهٔ موجود دست نمی‌زند و فقط جدول `scoring_norms` (و ردیف‌های آن) را در صورت نبودن اضافه می‌کند. اگر خطای `#1050 Table already exists` گرفتید یعنی نسخهٔ قدیمی و غیر-idempotent فایل را ایمپورت می‌کنید؛ فایل به‌روز را جایگزین کنید. تا وقتی جدول نباشد هم بک‌اند به‌طور خودکار از همان مقادیر آزمایشی داخلی استفاده می‌کند و چیزی نمی‌شکند.
