@@ -2,8 +2,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { SwotData } from '../types';
 import { generateSwotData } from '../services/geminiService';
-import { Loader2, Building2, CheckCircle2, XCircle, AlertTriangle, Target } from 'lucide-react';
-import GameShell from './GameShell';
+import { Loader2, Building2, CheckCircle2, XCircle, AlertTriangle, Target, ChevronLeft } from 'lucide-react';
+import GameShell, { GameState } from './GameShell';
 import MethodologyResult, { RubricDimension } from './MethodologyResult';
 import { toPersianNum } from '../utils';
 import { sfx } from '../services/audioService';
@@ -45,7 +45,7 @@ interface Props {
 }
 
 const SwotGame: React.FC<Props> = ({ onExit, onComplete }) => {
-  const [gameState, setGameState] = useState<'intro' | 'playing' | 'paused' | 'finished'>('intro');
+  const [gameState, setGameState] = useState<GameState>('intro');
   const [data, setData] = useState<SwotData | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [phase, setPhase] = useState<'sorting' | 'strategy'>('sorting');
@@ -103,18 +103,22 @@ const SwotGame: React.FC<Props> = ({ onExit, onComplete }) => {
     if (isCorrect) {
         sfx.playSuccess();
         setSortCorrect(c => c + 1);
+        // Correct answers flow on; a wrong one waits for the player so the
+        // explanation can actually be read (it used to vanish after 2.5s).
+        setTimeout(advanceSort, 700);
     } else {
         sfx.playError();
     }
+  };
 
-    setTimeout(() => {
-        setFeedback(null);
-        if (currentIndex < data.items.length - 1) {
-            setCurrentIndex(prev => prev + 1);
-        } else {
-            setPhase('strategy');
-        }
-    }, isCorrect ? 800 : 2500);
+  const advanceSort = () => {
+    if (!data) return;
+    setFeedback(null);
+    if (currentIndex < data.items.length - 1) {
+        setCurrentIndex(prev => prev + 1);
+    } else {
+        setPhase('strategy');
+    }
   };
 
   const handleStrategyChoice = (index: number) => {
@@ -132,10 +136,6 @@ const SwotGame: React.FC<Props> = ({ onExit, onComplete }) => {
       } else {
           sfx.playError();
       }
-
-      setTimeout(() => {
-          setGameState('finished');
-      }, 3000);
   };
 
   // Canned offline OR malformed content must not be recorded as a real result.
@@ -179,10 +179,14 @@ const SwotGame: React.FC<Props> = ({ onExit, onComplete }) => {
         usedFallback: isFallback,
       };
 
+      // A retry gets a fresh case: replaying the same statements with the
+      // answers already revealed inflated the rubric.
       const reset = () => {
         sortLog.current = []; strategyPick.current = null;
         setCurrentIndex(0); setSortCorrect(0); setFeedback(null);
-        setStrategyResult(null); setPhase('sorting'); setGameState('playing');
+        setStrategyResult(null); setPhase('sorting');
+        loadData();
+        setGameState('playing');
       };
 
       return (
@@ -194,6 +198,7 @@ const SwotGame: React.FC<Props> = ({ onExit, onComplete }) => {
             strength={strength}
             blindSpot={blindSpot}
             onRetry={reset}
+            recordable={!isFallback}
             onComplete={() => isFallback ? onExit() : onComplete(finalScore, payload)}
         />
       );
@@ -211,7 +216,12 @@ const SwotGame: React.FC<Props> = ({ onExit, onComplete }) => {
             'فاز ۲: با توجه به تحلیل، استراتژی درست را انتخاب کنید (۵۰ امتیاز).',
         ]}
         icon={<Target />}
-        stats={{ score: liveScore }}
+        stats={{
+            score: liveScore,
+            progress: data ? (phase === 'sorting'
+                ? { current: currentIndex + 1, total: data.items.length, label: 'گزاره' }
+                : { current: 2, total: 2, label: 'فاز' }) : undefined,
+        }}
         onExit={onExit}
         gameState={gameState}
         setGameState={setGameState}
@@ -261,9 +271,14 @@ const SwotGame: React.FC<Props> = ({ onExit, onComplete }) => {
                     </div>
 
                     {feedback && (
-                        <div className={`absolute inset-0 z-10 flex items-center justify-center backdrop-blur-sm ${feedback.correct ? 'bg-emerald-500/20' : 'bg-red-500/20'}`}>
-                            <div className={`px-8 py-4 rounded-full font-bold text-white text-xl shadow-lg animate-bounce max-w-xl text-center ${feedback.correct ? 'bg-emerald-500' : 'bg-red-500'}`}>
+                        <div className={`absolute inset-0 z-10 flex items-center justify-center p-4 backdrop-blur-sm ${feedback.correct ? 'bg-emerald-500/20' : 'bg-red-500/20'}`}>
+                            <div className={`px-6 md:px-8 py-4 rounded-2xl font-bold text-white text-base md:text-lg shadow-lg animate-scale-in max-w-xl text-center leading-relaxed ${feedback.correct ? 'bg-emerald-500' : 'bg-red-500'}`}>
                                 {feedback.msg}
+                                {!feedback.correct && (
+                                    <button onClick={advanceSort} className="mt-4 w-full py-2.5 rounded-xl bg-white/20 hover:bg-white/30 font-black text-sm transition-colors flex items-center justify-center gap-2">
+                                        متوجه شدم، ادامه <ChevronLeft size={16} />
+                                    </button>
+                                )}
                             </div>
                         </div>
                     )}
@@ -288,18 +303,18 @@ const SwotGame: React.FC<Props> = ({ onExit, onComplete }) => {
 
         {/* --- PHASE 2: STRATEGY --- */}
         {data && phase === 'strategy' && (
-            <div className="h-full bg-slate-900 text-white flex flex-col overflow-y-auto animate-fade-in">
-                <div className="bg-slate-800 p-6 shadow-md border-b border-slate-700 text-center">
-                    <h2 className="text-2xl font-black text-amber-400 mb-2">فاز ۲: تدوین استراتژی</h2>
-                    <p className="text-slate-400 text-sm">بر اساس تحلیل‌های انجام شده، بهترین اقدام را انتخاب کنید.</p>
+            <div className="h-full bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white flex flex-col overflow-y-auto animate-fade-in">
+                <div className="bg-white dark:bg-slate-800 p-5 md:p-6 shadow-sm border-b border-slate-200 dark:border-slate-700 text-center">
+                    <h2 className="text-xl md:text-2xl font-black text-blue-600 dark:text-amber-400 mb-2">فاز ۲: تدوین استراتژی</h2>
+                    <p className="text-slate-500 dark:text-slate-400 text-sm">بر اساس تحلیل‌های انجام شده، بهترین اقدام را انتخاب کنید.</p>
                 </div>
 
-                <div className="flex-1 p-8 flex flex-col items-center justify-center max-w-4xl mx-auto w-full">
-                    <div className="bg-white/10 backdrop-blur-md p-8 rounded-3xl border border-white/10 mb-8 w-full shadow-2xl">
-                        <h3 className="text-xl md:text-2xl font-bold leading-relaxed mb-4">{data.strategyPhase.question}</h3>
+                <div className="flex-1 p-4 md:p-8 flex flex-col items-center justify-center max-w-4xl mx-auto w-full">
+                    <div className="bg-white dark:bg-white/10 backdrop-blur-md p-6 md:p-8 rounded-3xl border border-slate-200 dark:border-white/10 mb-6 w-full shadow-xl">
+                        <h3 className="text-lg md:text-2xl font-bold leading-relaxed mb-4">{data.strategyPhase.question}</h3>
 
                         {strategyResult && (
-                            <div className={`p-4 rounded-xl mb-4 flex items-start gap-3 ${strategyResult.correct ? 'bg-emerald-500/20 text-emerald-300' : 'bg-red-500/20 text-red-300'}`}>
+                            <div className={`p-4 rounded-xl mb-2 flex items-start gap-3 animate-fade-in ${strategyResult.correct ? 'bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300' : 'bg-red-50 dark:bg-red-500/20 text-red-700 dark:text-red-300'}`}>
                                 {strategyResult.correct ? <CheckCircle2 className="shrink-0" /> : <XCircle className="shrink-0" />}
                                 <p className="font-bold">{strategyResult.feedback}</p>
                             </div>
@@ -312,17 +327,25 @@ const SwotGame: React.FC<Props> = ({ onExit, onComplete }) => {
                                 key={idx}
                                 disabled={!!strategyResult}
                                 onClick={() => handleStrategyChoice(idx)}
-                                className={`w-full text-right p-6 rounded-2xl border-2 transition-all flex items-center justify-between group
+                                className={`w-full text-right p-4 md:p-6 rounded-2xl border-2 transition-all flex items-center justify-between gap-3 group
                                     ${strategyResult
-                                        ? (opt.isCorrect ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-slate-800 border-slate-700 text-slate-500')
-                                        : 'bg-slate-800 border-slate-700 hover:bg-slate-700 hover:border-amber-500 text-slate-200'
+                                        ? (opt.isCorrect ? 'bg-emerald-600 border-emerald-500 text-white'
+                                            : strategyPick.current === idx ? 'bg-red-50 dark:bg-red-900/30 border-red-400 dark:border-red-500/60 text-red-700 dark:text-red-300'
+                                            : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500')
+                                        : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 hover:border-blue-500 dark:hover:border-amber-500 text-slate-700 dark:text-slate-200'
                                     }`}
                             >
-                                <span className="font-bold text-lg">{opt.text}</span>
-                                {!strategyResult && <div className="w-4 h-4 rounded-full border-2 border-slate-500 group-hover:border-amber-500"></div>}
+                                <span className="font-bold text-base md:text-lg">{opt.text}</span>
+                                {!strategyResult && <div className="w-4 h-4 rounded-full border-2 border-slate-400 dark:border-slate-500 group-hover:border-blue-500 dark:group-hover:border-amber-500 shrink-0"></div>}
                             </button>
                         ))}
                     </div>
+
+                    {strategyResult && (
+                        <button onClick={() => setGameState('finished')} className="mt-6 flex items-center gap-2 px-8 py-3 rounded-xl font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-lg transition-colors animate-fade-in">
+                            مشاهده کارنامه <ChevronLeft size={18} />
+                        </button>
+                    )}
                 </div>
             </div>
         )}

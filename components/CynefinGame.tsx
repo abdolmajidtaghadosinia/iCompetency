@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { CynefinData } from '../types';
 import { generateCynefinData } from '../services/geminiService';
 import { Loader2, Brain, CheckCircle2, XCircle, ChevronLeft, ShieldAlert, Compass, AlertTriangle } from 'lucide-react';
-import GameShell from './GameShell';
+import GameShell, { GameState } from './GameShell';
 import MethodologyResult, { RubricDimension } from './MethodologyResult';
 import { toPersianNum } from '../utils';
 import { sfx } from '../services/audioService';
@@ -49,7 +49,7 @@ const isValidCynefin = (d: CynefinData | null): boolean =>
 interface Attempt { correctDomain: DomainKey; domainPick: DomainKey; domainCorrect: boolean; responseCorrect: boolean; }
 
 const CynefinGame: React.FC<Props> = ({ onExit, onComplete }) => {
-  const [gameState, setGameState] = useState<'intro' | 'playing' | 'paused' | 'finished'>('intro');
+  const [gameState, setGameState] = useState<GameState>('intro');
   const [data, setData] = useState<CynefinData | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [index, setIndex] = useState(0);
@@ -133,9 +133,12 @@ const CynefinGame: React.FC<Props> = ({ onExit, onComplete }) => {
       usedFallback: isFallback,
     };
 
+    // A retry gets fresh scenarios: replaying the same ones with the domains
+    // already revealed inflated the rubric.
     const reset = () => {
       attempts.current = [];
       setIndex(0); setDomainPick(null); setOptionPick(null);
+      loadData();
       setGameState('playing');
     };
 
@@ -148,6 +151,7 @@ const CynefinGame: React.FC<Props> = ({ onExit, onComplete }) => {
         strength={strength}
         blindSpot={blindSpot}
         onRetry={reset}
+        recordable={!isFallback}
         onComplete={() => isFallback ? onExit() : onComplete(finalScore, payload)}
       />
     );
@@ -166,11 +170,15 @@ const CynefinGame: React.FC<Props> = ({ onExit, onComplete }) => {
         'پس از هر پاسخ، دامنه صحیح و الگوی واکنش آن آموزش داده می‌شود.',
       ]}
       icon={<Brain />}
-      stats={{ score: attempts.current.reduce((s, a) => s + (a.domainCorrect ? 50 : 0) + (a.responseCorrect ? 50 : 0), 0) }}
+      stats={{
+        score: attempts.current.reduce((s, a) => s + (a.domainCorrect ? 50 : 0) + (a.responseCorrect ? 50 : 0), 0),
+        progress: data ? { current: index + 1, total: data.scenarios.length, label: 'سناریو' } : undefined,
+      }}
       onExit={onExit}
       gameState={gameState}
       setGameState={setGameState}
       colorTheme="rose"
+      tone="dark"
     >
       <div className="h-full w-full bg-slate-950 text-white flex flex-col overflow-hidden rounded-3xl">
         {!data && !loadError && (
@@ -196,7 +204,6 @@ const CynefinGame: React.FC<Props> = ({ onExit, onComplete }) => {
                 نسخه آفلاین یا داده ناقص — این اجرا در کارنامه ثبت نمی‌شود.
               </div>
             )}
-            <div className="text-center text-xs text-slate-500 font-medium pt-3">سناریو {toPersianNum(index + 1)} از {toPersianNum(data.scenarios.length)}</div>
 
             <div className="flex-1 overflow-y-auto p-4 md:p-8 max-w-4xl mx-auto w-full min-h-0">
               {/* Scenario */}

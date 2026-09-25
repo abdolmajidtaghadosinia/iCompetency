@@ -2,8 +2,8 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { FiveWhysData } from '../types';
 import { generateFiveWhysData } from '../services/geminiService';
-import { Loader2, AlertTriangle, XCircle, CheckCircle2, Search, HelpCircle, ArrowDown } from 'lucide-react';
-import GameShell from './GameShell';
+import { Loader2, AlertTriangle, XCircle, CheckCircle2, Search, HelpCircle, ArrowDown, ChevronLeft, RotateCcw } from 'lucide-react';
+import GameShell, { GameState } from './GameShell';
 import MethodologyResult, { RubricDimension } from './MethodologyResult';
 import { toPersianNum } from '../utils';
 import { sfx } from '../services/audioService';
@@ -40,7 +40,7 @@ const shuffle = <T,>(arr: T[]): T[] => {
 interface LevelLog { level: number; wrongCount: number; timeMs: number; }
 
 const FiveWhysGame: React.FC<Props> = ({ onExit, onComplete }) => {
-  const [gameState, setGameState] = useState<'intro' | 'playing' | 'paused' | 'finished'>('intro');
+  const [gameState, setGameState] = useState<GameState>('intro');
   const [data, setData] = useState<FiveWhysData | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [currentLevel, setCurrentLevel] = useState(0);
@@ -96,24 +96,27 @@ const FiveWhysGame: React.FC<Props> = ({ onExit, onComplete }) => {
         timeMs: Date.now() - levelStart.current,
       });
       setScore(s => s + 20);
-      const solvedText = option.text;
-      setTimeout(() => {
-        if (currentLevel < shuffledLevels.length - 1) {
-          setChain(c => [...c, solvedText]);
-          setCurrentLevel(l => l + 1);
-        } else {
-          setChain(c => [...c, solvedText]);
-          setGameState('finished');
-        }
-      }, 1100);
     } else {
       // Soft correction: show why this is a symptom / lateral / jump, then let
       // them try again on the same level. No timed lockout.
       sfx.playError();
       levelWrongs.current += 1;
       setScore(s => Math.max(0, s - 5));
-      setTimeout(() => setPicked(null), 1400);
     }
+  };
+
+  // Feedback stays up until the player moves on: it used to vanish after
+  // ~1s, before a sentence of Persian feedback could actually be read.
+  const handleContinue = () => {
+    if (!levelData || picked === null) return;
+    const option = levelData.options[picked];
+    if (!option.isRootCausePath) {
+      setPicked(null);
+      return;
+    }
+    setChain(c => [...c, option.text]);
+    if (currentLevel < shuffledLevels.length - 1) setCurrentLevel(l => l + 1);
+    else setGameState('finished');
   };
 
   if (gameState === 'finished' && data) {
@@ -149,9 +152,13 @@ const FiveWhysGame: React.FC<Props> = ({ onExit, onComplete }) => {
       usedFallback: isFallback,
     };
 
+    // A retry gets a fresh case: replaying the same one with the answers
+    // already revealed inflated the rubric.
     const reset = () => {
       levelLogs.current = []; levelWrongs.current = 0; levelStart.current = Date.now();
-      setCurrentLevel(0); setScore(0); setChain([]); setPicked(null); setGameState('playing');
+      setCurrentLevel(0); setScore(0); setChain([]); setPicked(null);
+      loadData();
+      setGameState('playing');
     };
 
     return (
@@ -163,6 +170,7 @@ const FiveWhysGame: React.FC<Props> = ({ onExit, onComplete }) => {
         strength={strength}
         blindSpot={blindSpot}
         onRetry={reset}
+        recordable={!isFallback}
         onComplete={() => isFallback ? onExit() : onComplete(finalScore, payload)}
       />
     );
@@ -181,13 +189,14 @@ const FiveWhysGame: React.FC<Props> = ({ onExit, onComplete }) => {
             'گزینه‌های انحرافی یا بازگویی نشانه یا پریدن به راه‌حل هستند؛ از آن‌ها پرهیز کنید.',
         ]}
         icon={<Search />}
-        stats={{ score }}
+        stats={{ score, progress: data ? { current: currentLevel + 1, total: levelCount, label: 'سطح' } : undefined }}
         onExit={onExit}
         gameState={gameState}
         setGameState={setGameState}
         colorTheme="amber"
+        tone="dark"
     >
-      <div className="h-full w-full flex flex-col p-6 overflow-y-auto rounded-3xl bg-slate-900 text-slate-100">
+      <div className="h-full w-full flex flex-col p-4 md:p-6 overflow-y-auto rounded-3xl bg-slate-900 text-slate-100">
         {!data && !loadError && (
             <div className="flex-1 flex flex-col items-center justify-center animate-fade-in-up">
                 <Loader2 className="animate-spin w-10 h-10 text-amber-500 mb-4" />
@@ -213,8 +222,6 @@ const FiveWhysGame: React.FC<Props> = ({ onExit, onComplete }) => {
                     نسخه آفلاین — این اجرا در کارنامه ثبت نمی‌شود.
                 </div>
             )}
-            <div className="text-center text-xs text-slate-500 font-bold mb-4">سطح {toPersianNum(currentLevel + 1)} از {toPersianNum(levelCount)}</div>
-
             {/* Chain history */}
             <div className="space-y-3 mb-6">
                 <div className="flex items-start gap-3 text-sm font-bold text-slate-300 bg-slate-800/40 border border-slate-700 rounded-xl p-3">
@@ -275,10 +282,21 @@ const FiveWhysGame: React.FC<Props> = ({ onExit, onComplete }) => {
               })}
             </div>
 
-            {pickedWrong && (
-              <p className="text-center text-xs text-red-300 mt-4 animate-fade-in">این علت اصلی نیست؛ دوباره تلاش کنید.</p>
+            {picked !== null ? (
+              <div className="flex flex-col items-center gap-2 mt-5 animate-fade-in">
+                {pickedWrong && <p className="text-xs text-red-300">این علت اصلی نیست؛ بازخورد را بخوانید و دوباره انتخاب کنید.</p>}
+                <button
+                  onClick={handleContinue}
+                  className={`flex items-center gap-2 px-8 py-3 rounded-xl font-bold transition-all shadow-lg ${pickedWrong ? 'bg-slate-700 hover:bg-slate-600 text-white' : 'bg-amber-500 hover:bg-amber-400 text-slate-900'}`}
+                >
+                  {pickedWrong
+                    ? <><RotateCcw size={18} /> تلاش دوباره</>
+                    : <>{currentLevel < levelCount - 1 ? 'چرای بعدی' : 'مشاهده کارنامه'} <ChevronLeft size={18} /></>}
+                </button>
+              </div>
+            ) : (
+              <p className="text-center text-xs text-slate-500 mt-4">علتِ یک‌قدم‌عمیق‌تر را انتخاب کنید، نه نشانه یا راه‌حل را.</p>
             )}
-            <p className="text-center text-xs text-slate-500 mt-4">علتِ یک‌قدم‌عمیق‌تر را انتخاب کنید، نه نشانه یا راه‌حل را.</p>
           </div>
         )}
       </div>

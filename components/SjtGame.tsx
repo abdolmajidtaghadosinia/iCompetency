@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { SjtData, SjtDimension } from '../types';
 import { generateSjtData } from '../services/geminiService';
 import { Loader2, Users, CheckCircle2, XCircle, ChevronLeft, AlertTriangle, ThumbsUp, ThumbsDown, MessageSquare } from 'lucide-react';
-import GameShell from './GameShell';
+import GameShell, { GameState } from './GameShell';
 import MethodologyResult, { RubricDimension } from './MethodologyResult';
 import { toPersianNum } from '../utils';
 import { sfx } from '../services/audioService';
@@ -68,7 +68,7 @@ const worstPoints = (picked: number, effs: number[]): number => {
 };
 
 const SjtGame: React.FC<Props> = ({ onExit, onComplete }) => {
-  const [gameState, setGameState] = useState<'intro' | 'playing' | 'paused' | 'finished'>('intro');
+  const [gameState, setGameState] = useState<GameState>('intro');
   const [raw, setRaw] = useState<SjtData | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [index, setIndex] = useState(0);
@@ -162,9 +162,12 @@ const SjtGame: React.FC<Props> = ({ onExit, onComplete }) => {
       usedFallback: isFallback,
     };
 
+    // A retry gets fresh scenarios: replaying the same ones with the true
+    // rankings already revealed inflated the rubric.
     const reset = () => {
       attempts.current = [];
       setIndex(0); setBestPick(null); setWorstPick(null);
+      loadData();
       setGameState('playing');
     };
 
@@ -177,6 +180,7 @@ const SjtGame: React.FC<Props> = ({ onExit, onComplete }) => {
         strength={strength}
         blindSpot={blindSpot}
         onRetry={reset}
+        recordable={!isFallback}
         onComplete={() => isFallback ? onExit() : onComplete(finalScore, payload)}
       />
     );
@@ -194,11 +198,15 @@ const SjtGame: React.FC<Props> = ({ onExit, onComplete }) => {
         'پس از هر پاسخ، رتبه اثربخشی واقعی گزینه‌ها و دلیل آن نمایش داده می‌شود.',
       ]}
       icon={<Users />}
-      stats={{ score: Math.round(attempts.current.reduce((s, a) => s + (a.bestPts + a.worstPts) * 50, 0)) }}
+      stats={{
+        score: Math.round(attempts.current.reduce((s, a) => s + (a.bestPts + a.worstPts) * 50, 0)),
+        progress: data ? { current: index + 1, total: data.scenarios.length, label: 'موقعیت' } : undefined,
+      }}
       onExit={onExit}
       gameState={gameState}
       setGameState={setGameState}
       colorTheme="teal"
+      tone="dark"
     >
       <div className="h-full w-full bg-slate-950 text-white flex flex-col overflow-hidden rounded-3xl">
         {!data && !loadError && (
@@ -225,7 +233,6 @@ const SjtGame: React.FC<Props> = ({ onExit, onComplete }) => {
               </div>
             )}
             <div className="flex items-center justify-center gap-3 text-xs text-slate-500 font-medium pt-3">
-              <span>موقعیت {toPersianNum(index + 1)} از {toPersianNum(data.scenarios.length)}</span>
               <span className="px-2 py-0.5 rounded-full bg-teal-500/10 border border-teal-500/30 text-teal-300 font-bold">
                 {DIMENSIONS[canonicalDimension(scenario.dimension)]}
               </span>
