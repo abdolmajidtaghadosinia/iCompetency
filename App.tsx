@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
@@ -81,6 +81,16 @@ const PATH_TO_VIEW: Record<string, AppView> = Object.fromEntries(
   Object.entries(VIEW_PATHS).map(([view, path]) => [path, view as AppView])
 );
 
+// Screens a game can be launched from. Exiting or finishing a game returns
+// the player to whichever of these they came from (hub, journey map or
+// dashboard) instead of each game hardcoding its own destination.
+const LAUNCHER_VIEWS = new Set<AppView>([
+  AppView.DASHBOARD,
+  AppView.JOURNEY_MAP,
+  AppView.MINIGAME_HUB,
+  AppView.VERIFIED_RESUME,
+]);
+
 // Initial Empty State (No Mock Data)
 const initialUser: UserProfile = {
   name: "کاربر میهمان",
@@ -149,6 +159,13 @@ function App() {
   const [toast, setToast] = useState<ToastData | null>(null);
 
   const currentView = PATH_TO_VIEW[location.pathname] ?? AppView.DASHBOARD;
+
+  // Last launcher screen visited; a deep link straight into a game falls back
+  // to the hub.
+  const returnViewRef = useRef<AppView>(AppView.MINIGAME_HUB);
+  useEffect(() => {
+    if (LAUNCHER_VIEWS.has(currentView)) returnViewRef.current = currentView;
+  }, [currentView]);
 
   const errorMessage = (error: unknown, fallback = 'عملیات ناموفق بود.') => error instanceof Error ? error.message : fallback;
   const showError = (error: unknown, fallback?: string) => setToast({ message: errorMessage(error, fallback), type: 'error' });
@@ -236,13 +253,16 @@ function App() {
     navigate(VIEW_PATHS[newView]);
   };
 
-  const runProfileMutation = async (message: string, action: () => Promise<{ profile: UserProfile }>, nextView: AppView = AppView.DASHBOARD) => {
+  const exitGame = () => changeView(returnViewRef.current);
+
+  const runProfileMutation = async (message: string, action: () => Promise<{ profile: UserProfile }>, nextView: AppView = returnViewRef.current) => {
     setLoading(true);
     setLoadingMessage(message);
     try {
       const result = await action();
       applyServerProfile(result.profile);
       changeView(nextView);
+      setToast({ message: 'نتیجه با موفقیت ثبت شد.', type: 'success' });
     } catch (error) {
       showError(error);
     } finally {
@@ -305,8 +325,10 @@ function App() {
       await runProfileMutation('در حال ثبت نتیجه آزمون شخصیت...', () => submitBigFive(scores, validity));
   };
 
-  if (loading || authState === 'checking') {
-    return (
+  // Before login the loader replaces the whole screen. Once authenticated it
+  // is an overlay instead: unmounting the routes during a submit used to throw
+  // away a finished game's result screen whenever the server call failed.
+  const loaderScreen = (
       <div className="flex flex-col items-center justify-center h-screen bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm text-blue-900 dark:text-blue-100 z-50 relative overflow-hidden">
         <BackgroundQuotes />
         <div className="relative z-10 flex flex-col items-center animate-fade-in-up">
@@ -314,7 +336,10 @@ function App() {
             <h2 className="text-2xl font-bold animate-pulse mb-2">{loadingMessage || 'در حال آماده‌سازی...'}</h2>
         </div>
       </div>
-    );
+  );
+
+  if (authState === 'checking' || (loading && authState !== 'authenticated')) {
+    return loaderScreen;
   }
 
   if (authState === 'anonymous') {
@@ -332,6 +357,7 @@ function App() {
     <div className={`flex h-screen font-sans overflow-hidden relative transition-colors duration-300 ${darkMode ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-900'}`}>
       <BackgroundQuotes />
       {toast && <Toast {...toast} onDismiss={() => setToast(null)} />}
+      {loading && <div className="fixed inset-0 z-[90]">{loaderScreen}</div>}
 
       <Sidebar
         currentView={currentView}
@@ -370,7 +396,7 @@ function App() {
                 )}
               />
               <Route path={VIEW_PATHS[AppView.MINIGAME_HUB]} element={<MiniGameHub onSelectGame={changeView} user={user} />} />
-              <Route path={VIEW_PATHS[AppView.MINIGAME_BIGFIVE]} element={<BigFiveGame onExit={() => changeView(AppView.DASHBOARD)} onComplete={handleBigFiveComplete} />} />
+              <Route path={VIEW_PATHS[AppView.MINIGAME_BIGFIVE]} element={<BigFiveGame onExit={exitGame} onComplete={handleBigFiveComplete} />} />
               <Route path={VIEW_PATHS[AppView.VERIFIED_RESUME]} element={<VerifiedResume user={user} isDarkMode={darkMode} />} />
 
               {/* --- Cognitive Games (Razi Model) --- */}
@@ -379,35 +405,35 @@ function App() {
                 element={(
                   <MemoryGame
                     user={user}
-                    onExit={() => changeView(AppView.JOURNEY_MAP)}
+                    onExit={exitGame}
                     onComplete={(s, rawScores) => handleMiniGameComplete(s, 'node-1', AppView.MINIGAME_MEMORY, rawScores ? { rawScores } : undefined)}
                     onStepComplete={handleMemoryProgress}
                   />
                 )}
               />
-              <Route path={VIEW_PATHS[AppView.MINIGAME_MATH]} element={<MathGame onExit={() => changeView(AppView.JOURNEY_MAP)} onComplete={(s, payload) => handleMiniGameComplete(s, 'node-2', AppView.MINIGAME_MATH, payload)} />} />
-              <Route path={VIEW_PATHS[AppView.MINIGAME_PATTERN]} element={<PatternGame onExit={() => changeView(AppView.MINIGAME_HUB)} onComplete={(s) => handleMiniGameComplete(s, '', AppView.MINIGAME_PATTERN)} />} />
-              <Route path={VIEW_PATHS[AppView.MINIGAME_SPEED]} element={<SpeedGame onExit={() => changeView(AppView.JOURNEY_MAP)} onComplete={(s, payload) => handleMiniGameComplete(s, 'node-3', AppView.MINIGAME_SPEED, payload)} />} />
-              <Route path={VIEW_PATHS[AppView.MINIGAME_VISUALIZATION]} element={<VisualizationGame onExit={() => changeView(AppView.JOURNEY_MAP)} onComplete={(s) => handleMiniGameComplete(s, 'node-4', AppView.MINIGAME_VISUALIZATION)} />} />
-              <Route path={VIEW_PATHS[AppView.MINIGAME_ORIENTATION]} element={<Suspense fallback={<div className="h-full flex items-center justify-center"><Loader2 className="w-12 h-12 animate-spin text-emerald-500" /></div>}><OrientationGame3D onExit={() => changeView(AppView.JOURNEY_MAP)} onComplete={(s) => handleMiniGameComplete(s, 'node-5', AppView.MINIGAME_ORIENTATION)} /></Suspense>} />
-              <Route path={VIEW_PATHS[AppView.MINIGAME_STROOP]} element={<StroopGame onExit={() => changeView(AppView.JOURNEY_MAP)} onComplete={(s) => handleMiniGameComplete(s, 'node-6', AppView.MINIGAME_STROOP)} />} />
-              <Route path={VIEW_PATHS[AppView.MINIGAME_MULTITASK]} element={<MultitaskGame onExit={() => changeView(AppView.JOURNEY_MAP)} onComplete={(s) => handleMiniGameComplete(s, 'node-7', AppView.MINIGAME_MULTITASK)} />} />
+              <Route path={VIEW_PATHS[AppView.MINIGAME_MATH]} element={<MathGame onExit={exitGame} onComplete={(s, payload) => handleMiniGameComplete(s, 'node-2', AppView.MINIGAME_MATH, payload)} />} />
+              <Route path={VIEW_PATHS[AppView.MINIGAME_PATTERN]} element={<PatternGame onExit={exitGame} onComplete={(s) => handleMiniGameComplete(s, '', AppView.MINIGAME_PATTERN)} />} />
+              <Route path={VIEW_PATHS[AppView.MINIGAME_SPEED]} element={<SpeedGame onExit={exitGame} onComplete={(s, payload) => handleMiniGameComplete(s, 'node-3', AppView.MINIGAME_SPEED, payload)} />} />
+              <Route path={VIEW_PATHS[AppView.MINIGAME_VISUALIZATION]} element={<VisualizationGame onExit={exitGame} onComplete={(s) => handleMiniGameComplete(s, 'node-4', AppView.MINIGAME_VISUALIZATION)} />} />
+              <Route path={VIEW_PATHS[AppView.MINIGAME_ORIENTATION]} element={<Suspense fallback={<div className="h-full flex items-center justify-center"><Loader2 className="w-12 h-12 animate-spin text-emerald-500" /></div>}><OrientationGame3D onExit={exitGame} onComplete={(s) => handleMiniGameComplete(s, 'node-5', AppView.MINIGAME_ORIENTATION)} /></Suspense>} />
+              <Route path={VIEW_PATHS[AppView.MINIGAME_STROOP]} element={<StroopGame onExit={exitGame} onComplete={(s) => handleMiniGameComplete(s, 'node-6', AppView.MINIGAME_STROOP)} />} />
+              <Route path={VIEW_PATHS[AppView.MINIGAME_MULTITASK]} element={<MultitaskGame onExit={exitGame} onComplete={(s) => handleMiniGameComplete(s, 'node-7', AppView.MINIGAME_MULTITASK)} />} />
               <Route
                 path={VIEW_PATHS[AppView.MINIGAME_FACTFINDING]}
                 element={(
                   <FactFindingGame
-                    onExit={() => changeView(AppView.JOURNEY_MAP)}
+                    onExit={exitGame}
                     onComplete={(s) => handleMiniGameComplete(s, 'node-final', AppView.MINIGAME_FACTFINDING)}
                   />
                 )}
               />
-              <Route path={VIEW_PATHS[AppView.MINIGAME_ROLEPLAY]} element={<RoleplayGame onComplete={(s) => handleMiniGameComplete(s, '', AppView.MINIGAME_ROLEPLAY)} />} />
+              <Route path={VIEW_PATHS[AppView.MINIGAME_ROLEPLAY]} element={<RoleplayGame onExit={exitGame} onComplete={(s) => handleMiniGameComplete(s, '', AppView.MINIGAME_ROLEPLAY)} />} />
 
               {/* --- Methodology Games --- */}
-              <Route path={VIEW_PATHS[AppView.MINIGAME_5WHYS]} element={<FiveWhysGame onExit={() => changeView(AppView.MINIGAME_HUB)} onComplete={(s, payload) => handleMiniGameComplete(s, '', AppView.MINIGAME_5WHYS, payload)} />} />
-              <Route path={VIEW_PATHS[AppView.MINIGAME_SWOT]} element={<SwotGame onExit={() => changeView(AppView.MINIGAME_HUB)} onComplete={(s, payload) => handleMiniGameComplete(s, '', AppView.MINIGAME_SWOT, payload)} />} />
-              <Route path={VIEW_PATHS[AppView.MINIGAME_CYNEFIN]} element={<CynefinGame onExit={() => changeView(AppView.MINIGAME_HUB)} onComplete={(s, payload) => handleMiniGameComplete(s, '', AppView.MINIGAME_CYNEFIN, payload)} />} />
-              <Route path={VIEW_PATHS[AppView.MINIGAME_SJT]} element={<SjtGame onExit={() => changeView(AppView.MINIGAME_HUB)} onComplete={(s, payload) => handleMiniGameComplete(s, '', AppView.MINIGAME_SJT, payload)} />} />
+              <Route path={VIEW_PATHS[AppView.MINIGAME_5WHYS]} element={<FiveWhysGame onExit={exitGame} onComplete={(s, payload) => handleMiniGameComplete(s, '', AppView.MINIGAME_5WHYS, payload)} />} />
+              <Route path={VIEW_PATHS[AppView.MINIGAME_SWOT]} element={<SwotGame onExit={exitGame} onComplete={(s, payload) => handleMiniGameComplete(s, '', AppView.MINIGAME_SWOT, payload)} />} />
+              <Route path={VIEW_PATHS[AppView.MINIGAME_CYNEFIN]} element={<CynefinGame onExit={exitGame} onComplete={(s, payload) => handleMiniGameComplete(s, '', AppView.MINIGAME_CYNEFIN, payload)} />} />
+              <Route path={VIEW_PATHS[AppView.MINIGAME_SJT]} element={<SjtGame onExit={exitGame} onComplete={(s, payload) => handleMiniGameComplete(s, '', AppView.MINIGAME_SJT, payload)} />} />
 
               <Route path="*" element={<Navigate to={VIEW_PATHS[AppView.DASHBOARD]} replace />} />
             </Routes>

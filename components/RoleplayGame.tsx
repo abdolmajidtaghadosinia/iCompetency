@@ -1,17 +1,25 @@
-import React, { useState, useEffect } from 'react';
-import { Wallet, Clock, AlertTriangle, ChevronRight, FileText, Lock, Users, Activity, CheckCircle2 } from 'lucide-react';
+import React, { useState } from 'react';
+import { Wallet, Clock, ChevronLeft, FileText, Lock, Users, CheckCircle2, Briefcase } from 'lucide-react';
 import { roleplayScenario } from '../data/roleplayScenario';
 import type { RoleplayResource } from '../data/roleplayScenario';
 import Markdown from 'react-markdown';
 import { sfx } from '../services/audioService';
+import { toPersianNum } from '../utils';
+import GameShell, { GameState } from './GameShell';
+import ResultOverlay from './ResultOverlay';
 
 interface Props {
+  onExit: () => void;
   onComplete: (score: number) => void;
 }
 
+const PHASE_STEP: Record<string, number> = { briefing: 1, investigation: 2, decision: 3 };
+const credits = (n: number) => toPersianNum(n.toLocaleString('en-US'));
+
 type Phase = 'briefing' | 'investigation' | 'decision' | 'report';
 
-export const RoleplayGame: React.FC<Props> = ({ onComplete }) => {
+export const RoleplayGame: React.FC<Props> = ({ onExit, onComplete }) => {
+  const [gameState, setGameState] = useState<GameState>('intro');
   const [phase, setPhase] = useState<Phase>('briefing');
   const [budget, setBudget] = useState(roleplayScenario.budget);
   const [purchasedResources, setPurchasedResources] = useState<RoleplayResource[]>([]);
@@ -22,10 +30,6 @@ export const RoleplayGame: React.FC<Props> = ({ onComplete }) => {
   const [q4Answer, setQ4Answer] = useState("");
   const [q2Answer, setQ2Answer] = useState(""); // which is action in 24h
 
-  // Add 48 hours countdown based on purchased items
-  // It's mostly symbolic, so we just show 48h
-  const timeLimit = roleplayScenario.timeLimit;
-  
   const handlePurchase = (r: RoleplayResource) => {
     if (budget >= r.cost && !purchasedResources.find(p => p.id === r.id)) {
       setBudget(prev => prev - r.cost);
@@ -84,9 +88,10 @@ export const RoleplayGame: React.FC<Props> = ({ onComplete }) => {
     setPhase('report');
   };
 
+  const renderPhase = () => {
   if (phase === 'briefing') {
     return (
-      <div className="h-full overflow-y-auto py-8 px-4 pb-24 md:pb-8">
+      <div className="h-full overflow-y-auto py-4 md:py-8 px-1 md:px-4">
         <div 
           className="max-w-4xl mx-auto bg-white dark:bg-slate-800 rounded-3xl shadow-xl p-8 border border-slate-100 dark:border-slate-700 animate-fade-in-up"
         >
@@ -109,7 +114,7 @@ export const RoleplayGame: React.FC<Props> = ({ onComplete }) => {
               <Wallet size={24} className="text-blue-600" />
               <div>
                 <div className="text-sm opacity-80">بودجه در اختیار</div>
-                <div className="text-2xl font-bold">{budget.toLocaleString()} کردیت</div>
+                <div className="text-2xl font-bold">{credits(budget)} کردیت</div>
               </div>
             </div>
             <div className="w-px h-12 bg-blue-200 dark:bg-blue-500/30"></div>
@@ -127,7 +132,7 @@ export const RoleplayGame: React.FC<Props> = ({ onComplete }) => {
             className="w-full py-4 bg-slate-900 text-white rounded-xl font-bold text-lg hover:bg-slate-800 transition-colors flex items-center justify-center gap-2"
           >
             شروع تحقیقات
-            <ChevronRight size={20} />
+            <ChevronLeft size={20} />
           </button>
         </div>
       </div>
@@ -136,9 +141,9 @@ export const RoleplayGame: React.FC<Props> = ({ onComplete }) => {
 
   if (phase === 'investigation') {
     return (
-      <div className="h-full overflow-y-auto py-8 px-4 pb-24 md:pb-8">
+      <div className="h-full overflow-y-auto py-4 md:py-8 px-1 md:px-4">
         <div className="max-w-6xl mx-auto">
-          <div className="flex justify-between items-center mb-8 bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
+          <div className="flex flex-wrap gap-4 justify-between items-center mb-8 bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
           <div className="flex gap-6">
             <div className="flex items-center gap-2">
               <div className="bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 p-2 rounded-lg">
@@ -146,7 +151,7 @@ export const RoleplayGame: React.FC<Props> = ({ onComplete }) => {
               </div>
               <div>
                 <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">موجودی (کردیت)</div>
-                <div className="font-bold text-slate-800 dark:text-white text-lg">{budget.toLocaleString()}</div>
+                <div className="font-bold text-slate-800 dark:text-white text-lg">{credits(budget)}</div>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -165,7 +170,7 @@ export const RoleplayGame: React.FC<Props> = ({ onComplete }) => {
             className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-colors flex items-center gap-2"
           >
             پایان تحقیقات و تصمیم‌گیری
-            <ChevronRight size={18} />
+            <ChevronLeft size={18} />
           </button>
         </div>
 
@@ -199,7 +204,7 @@ export const RoleplayGame: React.FC<Props> = ({ onComplete }) => {
                           </div>
                           {!isPurchased && (
                             <div className={`font-bold px-3 py-1 rounded-lg text-sm ${canAfford ? 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200' : 'bg-red-50 dark:bg-red-500/15 text-red-500 dark:text-red-400'}`}>
-                              {res.cost.toLocaleString()}
+                              {credits(res.cost)}
                             </div>
                           )}
                           {isPurchased && (
@@ -267,7 +272,7 @@ export const RoleplayGame: React.FC<Props> = ({ onComplete }) => {
 
   if (phase === 'decision') {
     return (
-      <div className="h-full overflow-y-auto py-8 px-4 pb-24 md:pb-8">
+      <div className="h-full overflow-y-auto py-4 md:py-8 px-1 md:px-4">
         <div className="max-w-3xl mx-auto bg-white dark:bg-slate-800 rounded-3xl shadow-xl p-8 border border-slate-100 dark:border-slate-700 space-y-8">
           <div>
             <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-2">زمان تصمیم‌گیری فاز نهایی</h2>
@@ -329,6 +334,9 @@ export const RoleplayGame: React.FC<Props> = ({ onComplete }) => {
     );
   }
 
+  return null;
+  };
+
   if (phase === 'report') {
     const score = calculateScore();
     let grade = '';
@@ -339,12 +347,12 @@ export const RoleplayGame: React.FC<Props> = ({ onComplete }) => {
     else { grade = '❌ نیاز به توسعه'; msg = 'تشخیص شما ضعیف بود و با تصمیمات پرریسک، شرکت را در معرض خطر قرار دادید.'; }
 
     return (
-      <div className="h-full overflow-y-auto py-8 px-4 pb-24 md:pb-8">
-        <div className="max-w-3xl mx-auto bg-white dark:bg-slate-800 rounded-3xl shadow-xl p-8 text-center border border-slate-100 dark:border-slate-700">
-          <h2 className="text-3xl font-bold text-slate-800 mb-2">گزارش عملکرد مدیرعامل</h2>
+      <ResultOverlay>
+        <div className="max-w-3xl w-full bg-white dark:bg-slate-900 rounded-[2rem] shadow-2xl p-6 md:p-8 text-center border border-slate-200 dark:border-slate-700 animate-scale-in">
+          <h2 className="text-2xl md:text-3xl font-black text-slate-800 dark:text-white mb-2">گزارش عملکرد مدیرعامل</h2>
           <div className="text-xl font-bold text-indigo-600 dark:text-indigo-400 my-6">{grade}</div>
-          
-          <div className="text-6xl font-black text-slate-900 dark:text-white mb-6">{score} <span className="text-2xl text-slate-500">/ ۱۰۰</span></div>
+
+          <div className="text-6xl font-black text-slate-900 dark:text-white mb-6">{toPersianNum(score)} <span className="text-2xl text-slate-500">/ ۱۰۰</span></div>
           <p className="text-slate-600 dark:text-slate-300 mb-8 max-w-lg mx-auto">{msg}</p>
 
           <div className="bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 p-6 rounded-2xl text-right mb-8">
@@ -359,14 +367,32 @@ export const RoleplayGame: React.FC<Props> = ({ onComplete }) => {
 
           <button
             onClick={() => onComplete(score)}
-            className="px-8 py-4 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-colors"
+            className="w-full md:w-auto px-10 py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold transition-colors flex items-center justify-center gap-2 mx-auto shadow-lg"
           >
-            بازگشت به داشبورد اصلی
+            <CheckCircle2 size={18} /> ثبت نتیجه
           </button>
         </div>
-      </div>
+      </ResultOverlay>
     );
   }
 
-  return null;
+  return (
+    <GameShell
+      title={roleplayScenario.title}
+      description="شبیه‌سازی تصمیم‌گیری مدیرعامل تحت فشار: با بودجه محدود اطلاعات بخرید، شواهد را تحلیل کنید و تصمیم نهایی را بگیرید."
+      instructions={[
+        'گزارش وضعیت را با دقت بخوانید.',
+        'با بودجه محدود، منابع اطلاعاتی (مصاحبه، سند، تحقیق) را بخرید و تحلیل خود را یادداشت کنید.',
+        'در فاز تصمیم، گزینه‌ها را انتخاب و اقدامات خود را با ذکر دلیل بنویسید.',
+      ]}
+      icon={<Briefcase />}
+      stats={{ progress: { current: PHASE_STEP[phase] ?? 3, total: 3, label: 'فاز' } }}
+      onExit={onExit}
+      gameState={gameState}
+      setGameState={setGameState}
+      colorTheme="indigo"
+    >
+      <div className="h-full w-full">{renderPhase()}</div>
+    </GameShell>
+  );
 }
