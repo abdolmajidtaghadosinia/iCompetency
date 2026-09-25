@@ -3,7 +3,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Stars, Float, Text } from '@react-three/drei';
 import * as THREE from 'three';
 import { Compass } from 'lucide-react';
-import GameShell from './GameShell';
+import GameShell, { GameState } from './GameShell';
 import GameResultCard from './GameResultCard';
 import { toPersianNum } from '../utils';
 import { sfx } from '../services/audioService';
@@ -366,11 +366,14 @@ interface DirectionButtonsProps {
 }
 
 function DirectionButtons({ onSelect, disabled, targetDir }: DirectionButtonsProps) {
+  // These are SCREEN directions. They used to be labelled North/East/South/
+  // West, so once the compass rotated the "North" button was usually the
+  // wrong answer for North — the labels contradicted the task itself.
   const dirLabels: Record<ScreenDir, { label: string; arrow: string }> = {
-    UP: { label: 'شمال', arrow: '↑' },
-    RIGHT: { label: 'شرق', arrow: '→' },
-    DOWN: { label: 'جنوب', arrow: '↓' },
-    LEFT: { label: 'غرب', arrow: '←' },
+    UP: { label: 'بالا', arrow: '↑' },
+    RIGHT: { label: 'راست', arrow: '→' },
+    DOWN: { label: 'پایین', arrow: '↓' },
+    LEFT: { label: 'چپ', arrow: '←' },
   };
 
   const targetLabels: Record<CardinalDir, string> = {
@@ -388,10 +391,10 @@ function DirectionButtons({ onSelect, disabled, targetDir }: DirectionButtonsPro
       {/* Target indicator */}
       <div className="absolute top-4 left-1/2 -translate-x-1/2 pointer-events-none">
         <div className="bg-slate-900/80 backdrop-blur-sm border border-cyan-500/50 px-6 py-3 rounded-2xl text-center">
-          <div className="text-[10px] text-cyan-300 font-bold uppercase tracking-widest mb-1">
-            جهت مورد نظر
+          <div className="text-[10px] text-cyan-300 font-bold tracking-widest mb-1">
+            این جهت روی صفحه کدام طرف است؟
           </div>
-          <div className="text-2xl font-black text-white">{targetLabels[targetDir]}</div>
+          <div className="text-2xl font-black text-white">{targetLabels[targetDir]} <span className="text-cyan-300 text-base" dir="ltr">({targetDir})</span></div>
         </div>
       </div>
 
@@ -452,9 +455,9 @@ interface TutorialOverlayProps {
 
 function TutorialOverlay({ step, onSkip }: TutorialOverlayProps) {
   const messages = [
-    'قطب‌نما نچرخیده. شمال بالاست. دکمه «شمال» (↑) را بزنید.',
-    'قطب‌نما ۹۰° چرخیده! حرف N سمت راست است. شمال الآن کجاست؟',
-    'قطب‌نما ۱۸۰° چرخیده. شرق (E) را پیدا کنید!',
+    'قطب‌نما نچرخیده و N بالای صفحه است. دکمه «بالا» (↑) را بزنید.',
+    'قطب‌نما ۹۰° چرخید! حرف N اکنون سمت راست است. شمال روی صفحه کدام طرف است؟',
+    'قطب‌نما ۱۸۰° چرخید. حرف E (شرق) کدام طرف صفحه است؟',
   ];
 
   return (
@@ -482,7 +485,7 @@ const OrientationGame3D: React.FC<Props> = ({ onExit, onComplete }) => {
   const [webglSupported] = useState(() => isWebGLAvailable());
 
   // Game FSM
-  const [gameState, setGameState] = useState<'intro' | 'playing' | 'paused' | 'finished'>('intro');
+  const [gameState, setGameState] = useState<GameState>('intro');
   const [phase, setPhase] = useState<'tutorial' | 'timed'>('tutorial');
 
   // Round state
@@ -524,8 +527,7 @@ const OrientationGame3D: React.FC<Props> = ({ onExit, onComplete }) => {
       setTimeLeft((prev) => {
         if (prev <= 0.1) {
           if (timerRef.current) clearInterval(timerRef.current);
-          setGameState('finished');
-          sfx.playWin();
+          setGameState('finished'); // GameResultCard plays the completion chime
           return 0;
         }
         return prev - 0.1;
@@ -537,13 +539,9 @@ const OrientationGame3D: React.FC<Props> = ({ onExit, onComplete }) => {
     };
   }, [gameState, phase]);
 
-  // Start tutorial when game begins
-  useEffect(() => {
-    if (gameState === 'playing' && phase === 'tutorial') {
-      setTutorialStep(0);
-      setRound({ yaw: 0, pitch: 0, roll: 0, targetDir: 'N' });
-    }
-  }, [gameState]);
+  // The tutorial starts at step 0 with an unrotated compass (the initial
+  // state), so nothing needs resetting on 'playing' — doing so used to send
+  // the player back to tutorial step 1 every time they resumed from pause.
 
   // Generate tutorial round based on step
   const generateTutorialRound = useCallback((step: number) => {
@@ -663,6 +661,20 @@ const OrientationGame3D: React.FC<Props> = ({ onExit, onComplete }) => {
   );
 
 
+  // Keyboard: arrow keys answer.
+  useEffect(() => {
+    if (gameState !== 'playing') return;
+    const keyMap: Record<string, ScreenDir> = { ArrowUp: 'UP', ArrowRight: 'RIGHT', ArrowDown: 'DOWN', ArrowLeft: 'LEFT' };
+    const onKey = (e: KeyboardEvent) => {
+      const dir = keyMap[e.key];
+      if (!dir || e.repeat) return;
+      e.preventDefault();
+      handleInput(dir);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [gameState, handleInput]);
+
   // Restart
   const handleRestart = useCallback(() => {
     setPhase('timed');
@@ -726,9 +738,11 @@ const OrientationGame3D: React.FC<Props> = ({ onExit, onComplete }) => {
       description="قطب‌نمای سه‌بعدی می‌چرخد. جهت خواسته‌شده را روی صفحه پیدا کنید!"
       instructions={[
         'قطب‌نما ممکن است در سه محور بچرخد (یاو، پیچ، غلتش).',
-        'جهت خواسته شده (مثلاً شمال) را نسبت به چرخش قطب‌نما بیابید.',
-        'با دکمه‌های جهت‌دار روی صفحه پاسخ دهید.',
+        'جهت خواسته‌شده (مثلاً شمال / N) را روی قطب‌نمای چرخیده پیدا کنید.',
+        'بگویید آن جهت روی صفحه کدام طرف است: بالا، راست، پایین یا چپ.',
+        `پس از سه مرحله آموزشی، ${toPersianNum(SCORING.GAME_DURATION)} ثانیه زمان دارید.`,
       ]}
+      keyboardHint="کلیدهای جهت‌نما (↑ → ↓ ←) هم پاسخ می‌دهند."
       icon={<Compass />}
       stats={{
         score,
@@ -741,8 +755,9 @@ const OrientationGame3D: React.FC<Props> = ({ onExit, onComplete }) => {
       gameState={gameState}
       setGameState={setGameState}
       colorTheme="emerald"
+      tone="dark"
     >
-      <div className={`h-full w-full relative overflow-hidden rounded-xl transition-all duration-200 ${feedbackBg}`}>
+      <div className={`h-full w-full relative overflow-hidden rounded-3xl transition-all duration-200 ${feedbackBg}`}>
         {/* 3D Canvas */}
         <Canvas
           camera={{ position: [0, 5, 6], fov: 45, near: 0.1, far: 100 }}
@@ -782,25 +797,6 @@ const OrientationGame3D: React.FC<Props> = ({ onExit, onComplete }) => {
           <TutorialOverlay step={tutorialStep} onSkip={skipTutorial} />
         )}
 
-        {/* Combo indicator */}
-        {combo > 2 && gameState === 'playing' && (
-          <div className="absolute top-20 right-4 z-10 pointer-events-none animate-bounce">
-            <div className="bg-amber-500/20 border border-amber-400/50 rounded-xl px-3 py-2 text-center backdrop-blur-sm">
-              <div className="text-amber-300 text-xs font-bold">COMBO</div>
-              <div className="text-amber-100 text-lg font-black">×{toPersianNum(combo)}</div>
-            </div>
-          </div>
-        )}
-
-        {/* Difficulty indicator */}
-        {gameState === 'playing' && phase === 'timed' && (
-          <div className="absolute top-20 left-4 z-10 pointer-events-none">
-            <div className="bg-purple-500/20 border border-purple-400/50 rounded-xl px-3 py-2 text-center backdrop-blur-sm">
-              <div className="text-purple-300 text-xs font-bold">سطح</div>
-              <div className="text-purple-100 text-lg font-black">{toPersianNum(difficulty)}</div>
-            </div>
-          </div>
-        )}
       </div>
     </GameShell>
   );
