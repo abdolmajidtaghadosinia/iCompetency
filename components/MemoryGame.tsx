@@ -1,15 +1,15 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  Server, Database, Radar, Play, CheckCircle2, XCircle, Users, Cpu,
-  HelpCircle, Eye, RefreshCw, Zap, Heart, MousePointer2
+  Server, Database, Play, CheckCircle2, XCircle, Users, Cpu,
+  Eye, Heart, MousePointer2, Radar
 } from 'lucide-react';
 import { toPersianNum } from '../utils';
 import { calculateDPrime } from '../utils/scoring';
 import { UserProfile } from '../types';
 import { sfx } from '../services/audioService';
 import GameResultCard from './GameResultCard';
-import GameShell from './GameShell';
+import GameShell, { GameState } from './GameShell';
 
 interface Props {
   onExit: () => void;
@@ -19,10 +19,16 @@ interface Props {
 }
 
 // --- SUB-GAME 1: CORSI BLOCK TAPPING (Spatial Memory) ---
-const CorsiGame: React.FC<{ onFinish: (span: number, rawScore: number) => void }> = ({ onFinish }) => {
+// Sub-tests receive `paused` from the battery's GameShell so their timers stop
+// under the pause menu instead of running on unseen.
+const CorsiGame: React.FC<{ onFinish: (span: number, rawScore: number) => void; paused: boolean }> = ({ onFinish, paused }) => {
     const [sequence, setSequence] = useState<number[]>([]);
     const [userSequence, setUserSequence] = useState<number[]>([]);
-    const [gameState, setGameState] = useState<'display' | 'input' | 'finished'>('display');
+    // 'feedback' locks input between a finished attempt and the next round:
+    // without it, one extra tap after completing a sequence was checked
+    // against a non-existent position and cost a life.
+    const [gameState, setGameState] = useState<'display' | 'input' | 'feedback' | 'finished'>('display');
+    const [lastResult, setLastResult] = useState<'correct' | 'wrong' | null>(null);
     const [level, setLevel] = useState(2); 
     const [lives, setLives] = useState(3); // Standard 3 strikes
     const [successCount, setSuccessCount] = useState(0); // For Staircase: 2 correct -> level up
@@ -50,13 +56,15 @@ const CorsiGame: React.FC<{ onFinish: (span: number, rawScore: number) => void }
         }
         setSequence(newSeq);
         setUserSequence([]);
+        setLastResult(null);
         setGameState('display');
     };
 
     useEffect(() => { startRound(level); }, []);
 
+    // Pausing mid-playback replays the pattern from the start on resume.
     useEffect(() => {
-        if (gameState === 'display') {
+        if (gameState === 'display' && !paused) {
             setShown(0);
             let i = 0;
             const interval = setInterval(() => {
@@ -72,12 +80,12 @@ const CorsiGame: React.FC<{ onFinish: (span: number, rawScore: number) => void }
                 setTimeout(() => setActiveBlock(null), 600);
                 i++;
             }, 1000);
-            return () => clearInterval(interval);
+            return () => { clearInterval(interval); setActiveBlock(null); };
         }
-    }, [gameState, sequence]);
+    }, [gameState, sequence, paused]);
 
     const handleBlockClick = (idx: number) => {
-        if (gameState !== 'input') return;
+        if (gameState !== 'input' || paused) return;
 
         sfx.playClick();
         const newUserSeq = [...userSequence, idx];
@@ -96,6 +104,8 @@ const CorsiGame: React.FC<{ onFinish: (span: number, rawScore: number) => void }
     };
 
     const handleSuccess = () => {
+        setGameState('feedback');
+        setLastResult('correct');
         setTotalCorrect(c => c + 1);
         const currentSpan = sequence.length;
         if (currentSpan > maxSpan) setMaxSpan(currentSpan);
@@ -115,6 +125,8 @@ const CorsiGame: React.FC<{ onFinish: (span: number, rawScore: number) => void }
     };
 
     const handleFail = () => {
+        setGameState('feedback');
+        setLastResult('wrong');
         setErrors(e => e + 1);
         const newLives = lives - 1;
         setLives(newLives);
@@ -146,6 +158,7 @@ const CorsiGame: React.FC<{ onFinish: (span: number, rawScore: number) => void }
                 ]}
                 onRetry={() => { setLevel(2); setLives(3); setMaxSpan(0); setErrors(0); setTotalCorrect(0); setSuccessCount(0); startRound(2); }}
                 onComplete={() => onFinish(maxSpan, finalScore)}
+                completeLabel="ثبت و ادامه به بخش ۲"
             />
         );
     }
@@ -181,12 +194,17 @@ const CorsiGame: React.FC<{ onFinish: (span: number, rawScore: number) => void }
 
             {/* Phase banner */}
             <div className={`relative z-10 flex items-center gap-2 mb-5 px-4 py-2 rounded-full font-black text-sm border transition-colors duration-300 ${
-                isWatching
+                gameState === 'feedback'
+                    ? (lastResult === 'correct' ? 'bg-emerald-500/20 border-emerald-400/60 text-emerald-200' : 'bg-rose-500/15 border-rose-500/50 text-rose-300')
+                    : isWatching
                     ? 'bg-sky-500/10 border-sky-500/40 text-sky-300'
                     : 'bg-emerald-500/10 border-emerald-500/40 text-emerald-300'
             }`}>
-                {isWatching ? <Eye size={16} className="animate-pulse" /> : <MousePointer2 size={16} />}
-                {isWatching ? 'الگو را به خاطر بسپارید' : 'الگو را تکرار کنید'}
+                {gameState === 'feedback'
+                    ? (lastResult === 'correct' ? <><CheckCircle2 size={16} /> درست بود!</> : <><XCircle size={16} /> اشتباه — یک جان از دست رفت</>)
+                    : isWatching
+                    ? <><Eye size={16} className="animate-pulse" /> الگو را به خاطر بسپارید</>
+                    : <><MousePointer2 size={16} /> الگو را تکرار کنید</>}
             </div>
 
             {/* The grid */}
@@ -257,7 +275,7 @@ const makePairs = (lvlIndex: number) => {
     return icons.map((icon, i) => ({ icon, color: colors[i] }));
 };
 
-const PairedGame: React.FC<{ onFinish: (accuracy: number, rawScore: number) => void }> = ({ onFinish }) => {
+const PairedGame: React.FC<{ onFinish: (accuracy: number, rawScore: number) => void; paused: boolean }> = ({ onFinish, paused }) => {
     const [phase, setPhase] = useState<'study' | 'delay' | 'test' | 'finished'>('study');
     const [level, setLevel] = useState(0);
     // Pairs and the study clock are seeded lazily so the very first render is
@@ -287,16 +305,17 @@ const PairedGame: React.FC<{ onFinish: (accuracy: number, rawScore: number) => v
     // freshly seeded study phase can never be mistaken for a finished one.
     useEffect(() => {
         if (phase !== 'study' && phase !== 'delay') return;
+        if (paused) return; // the study clock stops under the pause menu
         if (timeLeft > 0) {
             const t = setTimeout(() => setTimeLeft(l => l - 1), 1000);
             return () => clearTimeout(t);
         }
         if (phase === 'study') { setPhase('delay'); setTimeLeft(3); }
         else { setPhase('test'); setTestIndex(0); }
-    }, [timeLeft, phase]);
+    }, [timeLeft, phase, paused]);
 
     const handleAnswer = (color: string) => {
-        if (lastPick) return;
+        if (lastPick || paused) return;
         const currentPair = pairs[testIndex];
         const isCorrect = currentPair.color === color;
         setLastPick({ color, correct: isCorrect });
@@ -335,6 +354,7 @@ const PairedGame: React.FC<{ onFinish: (accuracy: number, rawScore: number) => v
                 ]}
                 onRetry={() => { setLevel(0); setCorrectCount(0); setTotalTests(0); startLevel(0); }}
                 onComplete={() => onFinish(accuracy, finalScore)}
+                completeLabel="ثبت و ادامه به بخش ۳"
             />
         );
     }
@@ -421,13 +441,20 @@ const PairedGame: React.FC<{ onFinish: (accuracy: number, rawScore: number) => v
 };
 
 // --- SUB-GAME 3: N-BACK (Working Memory) ---
-const NBackGame: React.FC<{ onFinish: (score: number, rawScore: number) => void }> = ({ onFinish }) => {
+const NBACK_TRIALS = 25;
+const NBACK_POOL = ['A', 'B', 'C', 'D', 'H', 'K', 'X', 'Y'];
+const NBACK_ISI = 2500; // Inter-Stimulus Interval (ms)
+
+const NBackGame: React.FC<{ onFinish: (score: number, rawScore: number) => void; paused: boolean }> = ({ onFinish, paused }) => {
     const [n, setN] = useState(1);
     const [sequence, setSequence] = useState<string[]>([]);
     const sequenceRef = useRef<string[]>([]);
     const [showStimulus, setShowStimulus] = useState(false);
     const [gameOver, setGameOver] = useState(false);
     const [trials, setTrials] = useState(0);
+    // Between the 1-back and 2-back blocks the rule changes, so the player
+    // gets a self-paced notice instead of the stream silently switching.
+    const [levelNotice, setLevelNotice] = useState(false);
 
     // Stats for d-prime
     const [hits, setHits] = useState(0); // Correct matches
@@ -435,25 +462,22 @@ const NBackGame: React.FC<{ onFinish: (score: number, rawScore: number) => void 
     const [falseAlarms, setFalseAlarms] = useState(0); // Wrong matches
     const [nonTargets, setNonTargets] = useState(0); // Total non-matches
     const [userResponded, setUserResponded] = useState(false);
-
-    const MAX_TRIALS = 25;
-    const POOL = ['A', 'B', 'C', 'D', 'H', 'K', 'X', 'Y'];
-    const ISI = 2500; // Inter-Stimulus Interval (ms)
+    const [responseFeedback, setResponseFeedback] = useState<'hit' | 'fa' | null>(null);
 
     const current = sequence.length > 0 ? sequence[sequence.length - 1] : '';
 
     // Trial loop chained on the `trials` state: each run schedules exactly one
-    // trial, so the level-up/game-over check always sees the live count. (The
-    // previous self-scheduling timeout closed over `trials` from mount, so the
-    // check never fired and the game could not end.)
+    // trial, so the level-up/game-over check always sees the live count.
     useEffect(() => {
-        if (gameOver) return;
+        if (gameOver || levelNotice || paused) return;
 
-        if (trials >= MAX_TRIALS) {
+        if (trials >= NBACK_TRIALS) {
             if (n < 2) {
                 setN(2);
                 setTrials(0);
                 setSequence([]);
+                sequenceRef.current = [];
+                setLevelNotice(true);
             } else {
                 setGameOver(true);
             }
@@ -462,29 +486,33 @@ const NBackGame: React.FC<{ onFinish: (score: number, rawScore: number) => void 
 
         const timeoutId = setTimeout(() => {
             // `sequence` is fresh here: this effect re-runs per trial.
-            const shouldMatch = Math.random() < 0.3 && sequence.length >= n;
+            const eligible = sequence.length >= n; // first n items can't match anything
+            const shouldMatch = eligible && Math.random() < 0.3;
             let newItem = '';
 
             if (shouldMatch) {
                 newItem = sequence[sequence.length - n];
                 setTargets(t => t + 1);
             } else {
-                newItem = POOL[Math.floor(Math.random() * POOL.length)];
-                if (sequence.length >= n && newItem === sequence[sequence.length - n]) {
-                    newItem = POOL.find(x => x !== newItem) || 'A';
+                newItem = NBACK_POOL[Math.floor(Math.random() * NBACK_POOL.length)];
+                if (eligible && newItem === sequence[sequence.length - n]) {
+                    newItem = NBACK_POOL.find(x => x !== newItem) || 'A';
                 }
-                setNonTargets(nt => nt + 1);
+                // Only items the player could respond to count as non-targets;
+                // counting the unanswerable first n inflated correct rejections.
+                if (eligible) setNonTargets(nt => nt + 1);
             }
 
             setSequence(prev => [...prev, newItem]);
             sequenceRef.current = [...sequenceRef.current, newItem];
             setUserResponded(false);
+            setResponseFeedback(null);
             setShowStimulus(true);
             setTrials(t => t + 1);
-        }, trials === 0 ? 600 : ISI);
+        }, trials === 0 ? 800 : NBACK_ISI);
 
         return () => clearTimeout(timeoutId);
-    }, [trials, n, gameOver]);
+    }, [trials, n, gameOver, levelNotice, paused]);
 
     // Hide the stimulus 1.5s after each onset
     useEffect(() => {
@@ -494,19 +522,35 @@ const NBackGame: React.FC<{ onFinish: (score: number, rawScore: number) => void 
     }, [showStimulus, trials]);
 
     const handleMatch = () => {
-        if (!showStimulus || sequence.length <= n || userResponded) return;
-        
+        if (paused || levelNotice || !showStimulus || sequence.length <= n || userResponded) return;
+
         setUserResponded(true);
         const target = sequenceRef.current[sequenceRef.current.length - 1 - n];
-        
+
         if (current === target) {
             setHits(h => h + 1);
+            setResponseFeedback('hit');
             sfx.playSuccess();
         } else {
             setFalseAlarms(f => f + 1);
+            setResponseFeedback('fa');
             sfx.playError();
         }
     };
+
+    // Keyboard: Space (or Enter) = match.
+    useEffect(() => {
+        if (gameOver) return;
+        const onKey = (e: KeyboardEvent) => {
+            if (e.repeat) return;
+            if (e.code === 'Space' || e.key === 'Enter') {
+                e.preventDefault();
+                handleMatch();
+            }
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    });
 
     if (gameOver) {
         const dPrime = calculateDPrime(hits, targets, falseAlarms, nonTargets);
@@ -518,36 +562,83 @@ const NBackGame: React.FC<{ onFinish: (score: number, rawScore: number) => void 
                 rawScore={dPrime} // A9c norm is on the raw d' scale (mean 2.5, sd 1.0)
                 scoreKey="A9c"
                 metrics={[
-                    { label: 'شاخص d-prime', value: dPrime.toFixed(2), subtext: 'تفکیک پذیری' },
-                    { label: 'ضربه (Hits)', value: hits },
-                    { label: 'خطای مثبت', value: falseAlarms },
+                    { label: 'شاخص d-prime', value: toPersianNum(dPrime.toFixed(2)), subtext: 'تفکیک پذیری' },
+                    { label: 'تشخیص درست', value: `${toPersianNum(hits)} از ${toPersianNum(targets)}` },
+                    { label: 'خطای مثبت', value: toPersianNum(falseAlarms) },
                 ]}
-                onRetry={() => { setN(1); setHits(0); setFalseAlarms(0); setTargets(0); setNonTargets(0); setGameOver(false); setSequence([]); sequenceRef.current = []; setTrials(0); setUserResponded(false); setShowStimulus(false); }}
+                onRetry={() => { setN(1); setHits(0); setFalseAlarms(0); setTargets(0); setNonTargets(0); setGameOver(false); setSequence([]); sequenceRef.current = []; setTrials(0); setUserResponded(false); setShowStimulus(false); setResponseFeedback(null); setLevelNotice(false); }}
                 onComplete={() => onFinish(finalScore, dPrime)}
+                completeLabel="ثبت و پایان آزمون"
             />
         );
     }
 
+    if (levelNotice) {
+        return (
+            <div className="flex flex-col items-center justify-center h-full w-full bg-gradient-to-b from-slate-900 to-slate-950 px-6 animate-fade-in">
+                <div className="max-w-md w-full bg-slate-800/70 border border-slate-700 rounded-3xl p-7 shadow-2xl text-center animate-scale-in">
+                    <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-rose-500 to-pink-600 text-white flex items-center justify-center shadow-lg">
+                        <Radar size={26} />
+                    </div>
+                    <div className="text-[11px] font-black text-rose-300 mb-1">مرحله دوم</div>
+                    <h2 className="text-xl font-black text-white mb-3">حالا ۲-Back</h2>
+                    <p className="text-sm text-slate-300 leading-relaxed mb-6">
+                        از این به بعد، وقتی حرف فعلی با حرفِ <b className="text-white">دو مرحله قبل</b> یکسان بود «تطابق» را بزنید (نه حرف قبلی).
+                    </p>
+                    <button
+                        onClick={() => setLevelNotice(false)}
+                        className="w-full py-3.5 bg-gradient-to-r from-rose-500 to-pink-600 text-white rounded-2xl font-black shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2"
+                    >
+                        <Play size={18} fill="currentColor" /> شروع مرحله دوم
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    const canRespond = showStimulus && sequence.length > n && !userResponded;
+
     return (
-        <div className="flex flex-col items-center justify-center h-full relative bg-slate-900 text-white">
-            <div className="absolute top-4 left-4 bg-slate-800 px-3 py-1 rounded-full text-sm font-bold">
-                Level: {n}-Back
-            </div>
-            <div className="absolute top-4 right-14 bg-slate-800 px-3 py-1 rounded-full text-sm font-bold text-slate-300 tabular-nums">
-                آزمایه {toPersianNum(Math.min(trials, MAX_TRIALS))} / {toPersianNum(MAX_TRIALS)}
-            </div>
-            
-            <div className={`text-9xl font-black transition-all duration-200 ${showStimulus ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`}>
-                {current}
+        <div className="flex flex-col items-center justify-center h-full w-full bg-gradient-to-b from-slate-900 to-slate-950 text-white px-4 py-6 relative overflow-hidden">
+            {/* HUD */}
+            <div className="relative z-10 w-full max-w-sm flex items-center justify-between mb-8">
+                <div className="flex items-center gap-2 bg-slate-800/80 border border-slate-700 rounded-full pl-3 pr-2 py-1.5">
+                    <Radar size={15} className="text-rose-400" />
+                    <span className="text-xs font-black text-slate-200">قانون</span>
+                    <span className="text-sm font-black text-rose-400" dir="ltr">{toPersianNum(n)}-Back</span>
+                </div>
+                <div className="bg-slate-800/80 border border-slate-700 rounded-full px-3 py-1.5 text-xs font-black text-slate-300 tabular-nums">
+                    آزمایه {toPersianNum(Math.min(trials, NBACK_TRIALS))} از {toPersianNum(NBACK_TRIALS)}
+                </div>
             </div>
 
-            <button 
+            <p className="relative z-10 text-xs font-bold text-slate-400 mb-6 text-center">
+                اگر حرف فعلی با حرفِ {n === 1 ? 'قبلی' : 'دو مرحله قبل'} یکسان است، «تطابق» را بزنید.
+            </p>
+
+            <div className={`w-44 h-44 rounded-3xl border-2 flex items-center justify-center mb-10 transition-colors duration-200 ${
+                responseFeedback === 'hit' ? 'border-emerald-400 bg-emerald-500/10'
+                : responseFeedback === 'fa' ? 'border-rose-500 bg-rose-500/10'
+                : 'border-slate-700 bg-slate-800/50'
+            }`}>
+                <span className={`text-8xl font-black transition-all duration-200 ${showStimulus ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`} dir="ltr">
+                    {current}
+                </span>
+            </div>
+
+            <button
                 onClick={handleMatch}
-                disabled={userResponded}
-                className={`absolute bottom-12 w-64 py-6 rounded-2xl font-bold text-xl shadow-[0_0_30px_rgba(225,29,72,0.5)] active:scale-95 transition-all ${userResponded ? 'bg-slate-700 text-slate-500' : 'bg-rose-600 hover:bg-rose-500 text-white'}`}
+                disabled={!canRespond}
+                className={`w-64 py-5 rounded-2xl font-black text-xl active:scale-95 transition-all ${
+                    responseFeedback === 'hit' ? 'bg-emerald-600 text-white'
+                    : responseFeedback === 'fa' ? 'bg-rose-800 text-rose-200'
+                    : canRespond ? 'bg-rose-600 hover:bg-rose-500 text-white shadow-[0_0_30px_rgba(225,29,72,0.45)]'
+                    : 'bg-slate-800 text-slate-500'
+                }`}
             >
-                تطابق (Match)
+                {responseFeedback === 'hit' ? 'درست!' : responseFeedback === 'fa' ? 'تطابق نبود' : 'تطابق'}
             </button>
+            <p className="mt-3 text-[11px] font-bold text-slate-500">کلید Space هم کار می‌کند</p>
         </div>
     );
 };
@@ -562,7 +653,7 @@ const STAGE_BRIEF: Record<StageKey, { n: number; title: string; test: string; ic
         steps: [
             'چند خانه از شبکه به‌ترتیب روشن می‌شوند؛ با دقت تماشا کنید.',
             'سپس همان خانه‌ها را به همان ترتیب لمس کنید.',
-            'با هر پاسخ درست، طول الگو یک واحد بلندتر می‌شود.',
+            'با هر دو پاسخ درستِ پیاپی الگو یک خانه بلندتر می‌شود؛ هر خطا یک جان (از ۳) کم می‌کند.',
         ],
     },
     paired: {
@@ -578,7 +669,7 @@ const STAGE_BRIEF: Record<StageKey, { n: number; title: string; test: string; ic
         steps: [
             'حروف یکی‌یکی نمایش داده می‌شوند.',
             'هر بار که حرف فعلی با N حرف قبل یکسان بود، دکمه «تطابق» را بزنید.',
-            'ابتدا N برابر ۱ است و در ادامه به ۲ افزایش می‌یابد.',
+            'ابتدا N برابر ۱ است و در ادامه به ۲ افزایش می‌یابد (کلید Space = تطابق).',
         ],
     },
 };
@@ -624,22 +715,20 @@ const StageBriefing: React.FC<{ stage: StageKey; onStart: () => void }> = ({ sta
 };
 
 // --- MAIN WRAPPER ---
+const STAGE_ORDER: StageKey[] = ['corsi', 'paired', 'nback'];
+
 const MemoryGame: React.FC<Props> = ({ onExit, onComplete, onStepComplete }) => {
-    const [gameState, setGameState] = useState<'intro' | 'playing' | 'paused' | 'finished'>('intro');
+    const [gameState, setGameState] = useState<GameState>('intro');
+    // Starts at corsi; only stage completions advance it. (This used to be
+    // reset from an effect on every switch to 'playing', so resuming from the
+    // pause menu threw the player back to the start of the whole battery.)
     const [gameStage, setGameStage] = useState<StageKey>('corsi');
     // Every stage opens with its own briefing so no task ever starts cold.
     const [briefing, setBriefing] = useState(true);
 
     // Store raw scores for T-Score calculation
     const [rawScores, setRawScores] = useState({ corsi: 0, paired: 0, nback: 0 });
-
-    // When GameShell transitions to 'playing', start from corsi
-    useEffect(() => {
-        if (gameState === 'playing') {
-            setGameStage('corsi');
-            setBriefing(true);
-        }
-    }, [gameState]);
+    const paused = gameState !== 'playing';
 
     const handleCorsiFinish = (span: number, score: number) => {
         setRawScores(prev => ({ ...prev, corsi: span }));
@@ -672,20 +761,21 @@ const MemoryGame: React.FC<Props> = ({ onExit, onComplete, onStepComplete }) => 
                 "بخش ۳: تطابق حروف با N مرحله قبل را تشخیص دهید."
             ]}
             icon={<Database />}
-            stats={{ score: 0 }}
+            stats={{ progress: { current: STAGE_ORDER.indexOf(gameStage) + 1, total: STAGE_ORDER.length, label: 'بخش' } }}
             onExit={onExit}
             gameState={gameState}
             setGameState={setGameState}
             colorTheme="emerald"
+            tone="dark"
         >
-            <div className="h-full w-full relative overflow-hidden">
+            <div className="h-full w-full relative overflow-hidden rounded-3xl">
                 {briefing ? (
                     <StageBriefing stage={gameStage} onStart={() => setBriefing(false)} />
                 ) : (
                     <>
-                        {gameStage === 'corsi' && <CorsiGame onFinish={handleCorsiFinish} />}
-                        {gameStage === 'paired' && <PairedGame onFinish={handlePairedFinish} />}
-                        {gameStage === 'nback' && <NBackGame onFinish={handleNBackFinish} />}
+                        {gameStage === 'corsi' && <CorsiGame onFinish={handleCorsiFinish} paused={paused} />}
+                        {gameStage === 'paired' && <PairedGame onFinish={handlePairedFinish} paused={paused} />}
+                        {gameStage === 'nback' && <NBackGame onFinish={handleNBackFinish} paused={paused} />}
                     </>
                 )}
             </div>

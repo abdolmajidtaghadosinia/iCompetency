@@ -22,9 +22,11 @@ interface Props {
     metrics: Metric[];
     onRetry?: () => void;
     onComplete: () => void;
+    // Primary button label; multi-stage tests use it to say what comes next.
+    completeLabel?: string;
 }
 
-const GameResultCard: React.FC<Props> = ({ title, rawScore, scoreKey, metrics, onRetry, onComplete }) => {
+const GameResultCard: React.FC<Props> = ({ title, rawScore, scoreKey, metrics, onRetry, onComplete, completeLabel = 'ثبت نتیجه' }) => {
     const [tScore, setTScore] = useState(50);
     const [animatedScore, setAnimatedScore] = useState(0);
     const isNormed = scoreKey !== undefined;
@@ -146,7 +148,7 @@ const GameResultCard: React.FC<Props> = ({ title, rawScore, scoreKey, metrics, o
                             onClick={onComplete}
                             className="flex-[2] py-3 rounded-xl font-bold text-white bg-indigo-600 hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200 dark:shadow-none flex items-center justify-center gap-2"
                         >
-                            <CheckCircle2 size={18} /> ثبت نتیجه
+                            <CheckCircle2 size={18} /> {completeLabel}
                         </button>
                     </div>
                 </div>
