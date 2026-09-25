@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
-import { Box, Check, X, TrendingUp, ArrowRight, RotateCw, HelpCircle } from 'lucide-react';
-import GameShell from './GameShell';
+import { Box, Check, X, ArrowRight, RotateCw, HelpCircle } from 'lucide-react';
+import GameShell, { GameState } from './GameShell';
 import GameResultCard from './GameResultCard';
 import { toPersianNum } from '../utils';
 import { sfx } from '../services/audioService';
@@ -81,11 +81,11 @@ const AngleGauge = ({ degrees }: { degrees: number }) => {
 };
 
 const VisualizationGame: React.FC<Props> = ({ onExit, onComplete }) => {
-  const [gameState, setGameState] = useState<'intro' | 'playing' | 'paused' | 'finished'>('intro');
+  const [gameState, setGameState] = useState<GameState>('intro');
   const [round, setRound] = useState(1);
   const [difficulty, setDifficulty] = useState(1); // CAT Level
   const [score, setScore] = useState(0);
-  const [finished, setFinished] = useState(false);
+  const [correctCount, setCorrectCount] = useState(0);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
 
@@ -93,11 +93,14 @@ const VisualizationGame: React.FC<Props> = ({ onExit, onComplete }) => {
   const [targetRotation, setTargetRotation] = useState(0);
   const [options, setOptions] = useState<ShapeOption[]>([]);
 
+  // Only the first round is generated here. Later rounds are generated when
+  // the previous one resolves; keying this on gameState too used to swap the
+  // question out from under the player every time they resumed from pause.
   useEffect(() => {
-      if (gameState === 'playing') generateLevel();
-  }, [round, gameState]);
+      if (gameState === 'playing' && options.length === 0) generateLevel(difficulty);
+  }, [gameState]);
 
-  const generateLevel = () => {
+  const generateLevel = (difficulty: number) => {
       let step = 90;
       if (difficulty >= 3) step = 45;
       if (difficulty >= 7) step = 30;
@@ -127,35 +130,59 @@ const VisualizationGame: React.FC<Props> = ({ onExit, onComplete }) => {
   }
 
   const handleGuess = (idx: number) => {
-      if (selectedIndex !== null) return;
+      if (selectedIndex !== null || gameState !== 'playing') return;
 
       const opt = options[idx];
       const correct = !opt.mirrored && opt.deg === targetRotation;
       setSelectedIndex(idx);
       setIsCorrect(correct);
+      const next = correct ? Math.min(10, difficulty + 1) : Math.max(1, difficulty - 1);
 
       if (correct) {
           sfx.playSuccess();
           setScore(s => s + (10 * difficulty));
-          setDifficulty(d => Math.min(10, d + 1));
+          setCorrectCount(c => c + 1);
           if (navigator.vibrate) navigator.vibrate(50);
       } else {
           sfx.playError();
-          setDifficulty(d => Math.max(1, d - 1));
           if (navigator.vibrate) navigator.vibrate(200);
       }
+      setDifficulty(next);
 
       setTimeout(() => {
           if (round < MAX_ROUNDS) {
               setRound(r => r + 1);
+              generateLevel(next);
           } else {
-              setFinished(true);
               setGameState('finished');
           }
       }, 1200); // Slightly longer delay to see the equation result
   };
 
-  if (finished || gameState === 'finished') {
+  // Keyboard: 1-3 pick an option.
+  useEffect(() => {
+      if (gameState !== 'playing') return;
+      const onKey = (e: KeyboardEvent) => {
+          if (e.repeat) return;
+          const k = parseInt(e.key, 10);
+          if (k >= 1 && k <= options.length) handleGuess(k - 1);
+      };
+      window.addEventListener('keydown', onKey);
+      return () => window.removeEventListener('keydown', onKey);
+  }, [gameState, options, selectedIndex, round, difficulty, targetRotation]);
+
+  const resetRun = () => {
+      setRound(1);
+      setDifficulty(1);
+      setScore(0);
+      setCorrectCount(0);
+      setSelectedIndex(null);
+      setIsCorrect(null);
+      setOptions([]);
+      setGameState('playing');
+  };
+
+  if (gameState === 'finished') {
       const normalizedScore = Math.min(100, Math.round(score / 5));
 
       return (
@@ -164,19 +191,10 @@ const VisualizationGame: React.FC<Props> = ({ onExit, onComplete }) => {
             rawScore={normalizedScore}
             scoreKey="A12"
             metrics={[
+                { label: 'پاسخ صحیح', value: `${toPersianNum(correctCount)} از ${toPersianNum(MAX_ROUNDS)}` },
                 { label: 'سطح دشواری نهایی', value: toPersianNum(difficulty) },
-                { label: 'امتیاز خام', value: toPersianNum(score) },
             ]}
-            onRetry={() => {
-                setRound(1);
-                setDifficulty(1);
-                setScore(0);
-                setFinished(false);
-                setSelectedIndex(null);
-                setIsCorrect(null);
-                setGameState('playing');
-                generateLevel();
-            }}
+            onRetry={resetRun}
             onComplete={() => onComplete(normalizedScore)}
         />
       )
@@ -191,29 +209,25 @@ const VisualizationGame: React.FC<Props> = ({ onExit, onComplete }) => {
         instructions={[
             "شکل مبدا و زاویه چرخش را ببینید.",
             "نتیجه صحیح چرخش را از بین گزینه‌ها انتخاب کنید.",
-            "مراقب گزینه‌های قرینه (آینه‌ای) باشید — آنها پاسخ صحیح نیستند!"
+            "مراقب گزینه‌های قرینه (آینه‌ای) باشید — آنها پاسخ صحیح نیستند!",
+            `آزمون ${toPersianNum(MAX_ROUNDS)} مرحله دارد و دشواری با عملکرد شما تنظیم می‌شود.`,
         ]}
         icon={<Box />}
-        stats={{ score, level: difficulty }}
+        keyboardHint="کلیدهای ۱ تا ۳ گزینه‌ها را انتخاب می‌کنند."
+        stats={{ score, level: difficulty, progress: { current: round, total: MAX_ROUNDS } }}
         onExit={onExit}
-        onRestart={() => { setRound(1); setDifficulty(1); setScore(0); setFinished(false); setSelectedIndex(null); setIsCorrect(null); }}
+        onRestart={resetRun}
         gameState={gameState}
         setGameState={setGameState}
         colorTheme="indigo"
+        tone="dark"
     >
-        <div className="h-full bg-slate-900 text-white flex flex-col items-center justify-center p-4 relative overflow-hidden">
+        <div className="h-full w-full text-white flex flex-col items-center justify-center p-2 relative overflow-y-auto overflow-x-hidden">
             {/* Background Grid */}
-            <div className="absolute inset-0 opacity-10" style={{backgroundImage: 'radial-gradient(#6366f1 1px, transparent 1px)', backgroundSize: '20px 20px'}}></div>
-
-            <div className="flex justify-between w-full max-w-lg mb-8 items-center z-10">
-                <div className="flex items-center gap-3">
-                    <span className="text-indigo-300 font-bold bg-white/10 px-3 py-1 rounded-full text-xs">مرحله {toPersianNum(round)} / {toPersianNum(MAX_ROUNDS)}</span>
-                    <span className="text-white font-bold text-xs flex items-center gap-1"><TrendingUp size={14}/> سطح {toPersianNum(difficulty)}</span>
-                </div>
-            </div>
+            <div className="absolute inset-0 opacity-10 pointer-events-none" style={{backgroundImage: 'radial-gradient(#6366f1 1px, transparent 1px)', backgroundSize: '20px 20px'}}></div>
 
             {/* --- The Visual Equation --- */}
-            <div className="w-full max-w-2xl mb-12 flex items-center justify-between px-4 z-10 gap-2 md:gap-4">
+            <div className="w-full max-w-2xl mb-8 md:mb-12 flex items-center justify-between px-4 z-10 gap-2 md:gap-4">
 
                 {/* 1. Original Shape */}
                 <div className="flex flex-col items-center gap-3">
