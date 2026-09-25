@@ -5,7 +5,8 @@ import {
   Terminal, Fingerprint, Shield, User, Loader2, RefreshCw, Wallet, Gavel, Lock,
   Coins, ScrollText, ChevronLeft
 } from 'lucide-react';
-import GameIntro from './GameIntro';
+import GameShell, { GameState } from './GameShell';
+import ResultOverlay from './ResultOverlay';
 import { toPersianNum } from '../utils';
 import { sfx } from '../services/audioService';
 import { FactFindingScenario, FactAction, FactSource, FactSourceType } from '../types';
@@ -55,7 +56,7 @@ const ReliabilityRing: React.FC<{ value: number }> = ({ value }) => {
 };
 
 const FactFindingGame: React.FC<Props> = ({ onExit, onComplete }) => {
-  const [showIntro, setShowIntro] = useState(true);
+  const [shellState, setShellState] = useState<GameState>('intro');
   const [loading, setLoading] = useState(false);
   const [scenario, setScenario] = useState<FactFindingScenario | null>(null);
 
@@ -65,20 +66,22 @@ const FactFindingGame: React.FC<Props> = ({ onExit, onComplete }) => {
   const [openCategoryId, setOpenCategoryId] = useState<string | null>(null);
   const [showDecision, setShowDecision] = useState(false);
 
-  const [gameState, setGameState] = useState<'playing' | 'result'>('playing');
+  const [roundState, setRoundState] = useState<'playing' | 'result'>('playing');
   const [result, setResult] = useState<{ isWin: boolean; feedback: string; score: number } | null>(null);
   // Best single round counts (matches the server's best-attempt policy);
   // summing across replays let users farm an unbounded score by replaying.
   const [bestScore, setBestScore] = useState(0);
 
+  // The case file loads in the background while the intro card is up, like
+  // the other AI-backed games.
   useEffect(() => {
-    if (!showIntro && !scenario) loadNewScenario();
+    loadNewScenario();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showIntro]);
+  }, []);
 
   const loadNewScenario = async () => {
     setLoading(true);
-    setGameState('playing');
+    setRoundState('playing');
     setResult(null);
     setPerformedActions([]);
     setSelectedSourceId(null);
@@ -148,9 +151,11 @@ const FactFindingGame: React.FC<Props> = ({ onExit, onComplete }) => {
     }
 
     setResult({ isWin, feedback: selectedOption.feedback, score: roundScore });
-    setBestScore(prev => Math.max(prev, roundScore));
+    // Offline rounds are never recorded, so they can't set the best score
+    // that a later real round would submit.
+    if (scenario._fallback !== true) setBestScore(prev => Math.max(prev, roundScore));
     setShowDecision(false);
-    setGameState('result');
+    setRoundState('result');
   };
 
   const getTypeIcon = (type: FactSourceType, size = 14) => {
@@ -193,19 +198,29 @@ const FactFindingGame: React.FC<Props> = ({ onExit, onComplete }) => {
     );
   };
 
-  // --- Intro / loading / error ---
-  if (showIntro) return (
-    <GameIntro
+  // --- Shell: intro card, HUD and pause menu come from GameShell ---
+  const shell = (content: React.ReactNode) => (
+    <GameShell
       title="اتاق وضعیت: حقیقت‌یابی"
-      description="شما در نقش کارآگاه سازمانی هستید. با بودجه محدود، منابع اطلاعاتی را کاوش کنید و پیش از فروش گنجینه به حقیقت برسید. مراقب باشید؛ برخی منابع کم‌اعتبار و برخی شواهد، ردِ گم‌کن (Red Herring) هستند."
+      description="شما در نقش کارآگاه سازمانی هستید. با بودجه محدود، منابع اطلاعاتی را کاوش کنید و پیش از فروش گنجینه به حقیقت برسید."
+      instructions={[
+        'از دایرکتوری منابع، یک منبع را انتخاب و اقدامات تحقیقاتی آن را با بودجه بخرید.',
+        'به اعتبار منبع دقت کنید؛ برخی شواهد ردِ گم‌کن (Red Herring) هستند.',
+        'وقتی شواهد کافی دارید «صدور حکم نهایی» را بزنید؛ حکم قابل بازگشت نیست.',
+      ]}
       icon={<Fingerprint />}
-      gradientFrom="from-slate-700" gradientTo="to-slate-900" accentColor="text-emerald-400"
-      onStart={() => setShowIntro(false)}
-    />
+      stats={{ score: bestScore }}
+      onExit={onExit}
+      gameState={shellState}
+      setGameState={setShellState}
+      colorTheme="teal"
+    >
+      <div className="h-full w-full">{content}</div>
+    </GameShell>
   );
 
-  if (loading) return (
-    <div className="h-full flex flex-col items-center justify-center bg-slate-100 dark:bg-slate-950 animate-fade-in">
+  if (loading) return shell(
+    <div className="h-full flex flex-col items-center justify-center animate-fade-in">
       <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl shadow-xl flex flex-col items-center">
         <Loader2 className="w-12 h-12 text-emerald-500 animate-spin mb-4" />
         <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">در حال آماده‌سازی پرونده...</h3>
@@ -214,8 +229,8 @@ const FactFindingGame: React.FC<Props> = ({ onExit, onComplete }) => {
     </div>
   );
 
-  if (!scenario) return (
-    <div className="h-full flex flex-col items-center justify-center bg-slate-100 dark:bg-slate-950 p-8 text-center animate-fade-in">
+  if (!scenario) return shell(
+    <div className="h-full flex flex-col items-center justify-center p-4 text-center animate-fade-in">
       <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl shadow-xl flex flex-col items-center">
         <AlertTriangle className="w-12 h-12 text-amber-500 mb-4" />
         <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-2">خطا در بارگذاری</h2>
@@ -244,10 +259,10 @@ const FactFindingGame: React.FC<Props> = ({ onExit, onComplete }) => {
   const selected = selectedSourceId ? sourceIndex.get(selectedSourceId) : undefined;
 
   // --- Result screen ---
-  if (gameState === 'result' && result) {
+  if (roundState === 'result' && result) {
     return (
-      <div className="h-full bg-slate-100 dark:bg-slate-950 flex items-center justify-center p-4 animate-fade-in overflow-y-auto">
-        <div className={`max-w-lg w-full my-auto p-8 rounded-3xl text-center shadow-2xl border-2 bg-white dark:bg-slate-800 ${result.isWin ? 'border-emerald-500' : 'border-red-500'}`}>
+      <ResultOverlay>
+        <div className={`max-w-lg w-full p-6 md:p-8 rounded-[2rem] animate-scale-in text-center shadow-2xl border-2 bg-white dark:bg-slate-800 ${result.isWin ? 'border-emerald-500' : 'border-red-500'}`}>
           <div className={`w-20 h-20 mx-auto mb-5 rounded-full flex items-center justify-center ${result.isWin ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400' : 'bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400'}`}>
             {result.isWin ? <CheckCircle2 size={44} /> : <XCircle size={44} />}
           </div>
@@ -281,16 +296,16 @@ const FactFindingGame: React.FC<Props> = ({ onExit, onComplete }) => {
 
           <div className="flex flex-col gap-3">
             <button onClick={loadNewScenario} className="w-full py-4 rounded-xl font-bold text-white shadow-lg transition-transform hover:scale-[1.02] bg-slate-900 dark:bg-emerald-600 flex items-center justify-center gap-2"><RefreshCw size={18} /> پرونده جدید</button>
-            <button onClick={() => isFallback ? onExit() : onComplete(bestScore)} className="w-full py-4 rounded-xl font-bold text-slate-600 dark:text-slate-300 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors">پایان و ثبت نتیجه</button>
+            <button onClick={() => isFallback ? onExit() : onComplete(bestScore)} className="w-full py-4 rounded-xl font-bold text-slate-600 dark:text-slate-300 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors">{isFallback ? 'بازگشت (نسخه آفلاین ثبت نمی‌شود)' : 'پایان و ثبت نتیجه'}</button>
           </div>
         </div>
-      </div>
+      </ResultOverlay>
     );
   }
 
   // --- Play screen ---
-  return (
-    <div className="h-full bg-slate-100 dark:bg-slate-950 flex flex-col p-3 md:p-5 overflow-hidden font-sans">
+  return shell(
+    <div className="h-full w-full flex flex-col overflow-hidden font-sans">
       {isFallback && (
         <div className="mb-3 bg-amber-100 dark:bg-amber-500/15 border border-amber-300 dark:border-amber-500/40 text-amber-700 dark:text-amber-300 px-4 py-2 rounded-xl text-xs font-bold text-center shrink-0">
           نسخه آفلاین (سرویس هوش مصنوعی در دسترس نیست) — این اجرا در کارنامه ثبت نمی‌شود.
@@ -314,7 +329,6 @@ const FactFindingGame: React.FC<Props> = ({ onExit, onComplete }) => {
           <span className="text-lg font-black tabular-nums text-emerald-400">{toPersianNum(performedActions.length)}</span>
           <span className="text-[9px] text-slate-400 font-bold uppercase">شواهد</span>
         </div>
-        <button onClick={onExit} className="bg-white/10 hover:bg-white/20 px-3 py-2 rounded-lg text-xs font-bold transition-colors shrink-0">خروج</button>
       </div>
 
       <div className="flex-1 flex flex-col lg:flex-row gap-3 min-h-0 overflow-y-auto lg:overflow-hidden pb-24 lg:pb-0">
